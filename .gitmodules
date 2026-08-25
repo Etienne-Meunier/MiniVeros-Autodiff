@@ -1,0 +1,9 @@
+[submodule "mini-veros"]
+	path = mini-veros
+	url = git@github.com:Etienne-Meunier/mini-veros.git
+[submodule "veros"]
+	path = veros
+	url = git@github.com:team-ocean/veros.git
+[submodule "verosad"]
+	path = verosad
+	url = git@github.com:Etienne-Meunier/veros.git
