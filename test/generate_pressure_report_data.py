@@ -3,7 +3,7 @@
 Same idea as generate_report_data.py, but for the surface-pressure external
 mode (enable_streamfunction=False, see test_pressure_solver.py) -- records
 error evolution over a longer horizon for the trust report's pressure-solver
-section. Saves test/results/pressure_acc_basic.npz.
+section. Saves $STORE/MiniVeros-Autodiff/results/pressure_acc_basic.npz.
 
 Usage:
     python test/generate_pressure_report_data.py [--steps N] [--veros-path PATH]
@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import dataclasses
+import os
 import sys
 from pathlib import Path
 
@@ -22,7 +23,8 @@ sys.path.insert(0, str(REPO_ROOT / "test"))
 from util import configure_veros_runtime, compute_error_evolution
 
 DEFAULT_VEROS_PATH = REPO_ROOT.parent / "veros"
-RESULTS_DIR = REPO_ROOT / "test" / "results"
+STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
+RESULTS_DIR = STORE / "MiniVeros-Autodiff" / "results"
 FIELDS = ("u", "v", "temp", "salt", "tke", "psi")
 
 

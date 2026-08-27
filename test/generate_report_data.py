@@ -8,15 +8,17 @@ quick regression checks, recording:
   - full snapshots (mini, real, diff) of a few representative fields at the
     final step, for visualization
 
-Saves one .npz per setup into test/results/. A separate plotting step
-(plot_report_figures.py) reads these back in -- kept separate so re-plotting
-doesn't require re-running the (slow) simulations.
+Saves one .npz per setup into $STORE/MiniVeros-Autodiff/results/ (see
+../program.md). A separate plotting step (plot_report_figures.py) reads
+these back in -- kept separate so re-plotting doesn't require re-running
+the (slow) simulations.
 
 Usage:
     python test/generate_report_data.py [--veros-path PATH]
 """
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -43,7 +45,8 @@ RUN_CONFIG = {
     "global_4deg": (300, 10),
 }
 
-RESULTS_DIR = REPO_ROOT / "test" / "results"
+STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
+RESULTS_DIR = STORE / "MiniVeros-Autodiff" / "results"
 
 
 def run_setup(setup_name, veros_path):

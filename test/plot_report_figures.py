@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Renders PNG figures from test/results/*.npz (produced by
-generate_report_data.py) for the trust report: error-evolution curves and
-mini/real/diff snapshot heatmaps. Writes into test/results/figures/.
+Renders PNG figures from $STORE/MiniVeros-Autodiff/results/*.npz (produced
+by generate_report_data.py) for the trust report: error-evolution curves
+and mini/real/diff snapshot heatmaps. Writes into
+$STORE/MiniVeros-Autodiff/results/figures/.
 
 Usage:
     python test/plot_report_figures.py
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -18,7 +20,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RESULTS_DIR = REPO_ROOT / "test" / "results"
+STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
+RESULTS_DIR = STORE / "MiniVeros-Autodiff" / "results"
 FIG_DIR = RESULTS_DIR / "figures"
 
 SETUPS = ["acc_basic", "acc", "global_4deg"]
