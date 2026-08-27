@@ -54,7 +54,7 @@ def build_mini_pressure(n_steps, veros_path):
     pressure_config = dataclasses.replace(model.config, enable_streamfunction=False)
     model = dataclasses.replace(model, config=pressure_config)
 
-    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn))
+    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn(model, s.state)))
     step = step_jit(step0)  # trace/compile
 
     step = step0

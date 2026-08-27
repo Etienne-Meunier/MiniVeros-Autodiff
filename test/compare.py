@@ -115,7 +115,7 @@ def build_mini(setup_name, n_steps, veros_path):
 
     step = step0
     for _ in range(n_steps):
-        step = loop.step(model, step, forcing_fn)
+        step = loop.step(model, step, forcing_fn(model, step.state))
 
     s_final = {name: np.asarray(getattr(step.state, name)) for name in state_fields}
 

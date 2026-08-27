@@ -57,7 +57,7 @@ def main():
     model, mini_step, forcing_fn = setup_mod.build()
 
     for _ in range(N_WARMUP):
-        mini_step = loop.step(model, mini_step, forcing_fn)
+        mini_step = loop.step(model, mini_step, forcing_fn(model, mini_step.state))
 
     captured_mini = {}
     orig_solve = mini_scipy_jax.elliptic_solve
@@ -71,7 +71,7 @@ def main():
 
     mini_scipy_jax.elliptic_solve = capture_mini
     try:
-        loop.step(model, mini_step, forcing_fn)
+        loop.step(model, mini_step, forcing_fn(model, mini_step.state))
     finally:
         mini_scipy_jax.elliptic_solve = orig_solve
 

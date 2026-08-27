@@ -47,7 +47,7 @@ def main():
 
     model, step0, forcing_fn = acc_basic.build()
     model = dataclasses.replace(model, config=dataclasses.replace(model.config, enable_streamfunction=False))
-    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn))
+    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn(model, s.state)))
 
     from veros.setups.acc_basic.acc_basic import ACCBasicSetup
     from veros.routines import veros_routine

@@ -91,7 +91,7 @@ def build_mini(setup_name, n_steps, veros_path, record_interval=None):
 
     # JIT compile the step function
     import jax
-    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn))
+    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn(model, s.state)))
     step_jit(step0)
 
     # Run steps

@@ -44,7 +44,7 @@ def build_mini(n_steps, eos_type):
     model, step0, forcing_fn = acc_basic.build()
     model = dataclasses.replace(model, config=dataclasses.replace(model.config, eq_of_state_type=eos_type))
 
-    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn))
+    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn(model, s.state)))
     step = step0
     for _ in range(n_steps):
         step = step_jit(step)
