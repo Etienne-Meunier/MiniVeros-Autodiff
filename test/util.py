@@ -48,6 +48,7 @@ def configure_veros_runtime(veros_path):
 
     import jax
     jax.config.update("jax_enable_x64", True)
+    jax.config.update("jax_platform_name", "cpu")
 
 
 def build_mini(setup_name, n_steps, veros_path, record_interval=None):

@@ -5,10 +5,14 @@ Runs every variant in setups_matrix.py (mini_veros vs veros), recording:
   - field snapshots at every recorded step, for the report's gifs
   - average wall time per step, for both implementations
 
-Saves one .npz per variant into $STORE/MiniVeros-Autodiff/results/ (see
-../program.md). A separate plotting step (plot_matrix_report.py) reads
-these back in -- kept separate so re-plotting doesn't require re-running
-the (slow) simulations.
+Saves one .npz per variant into $STORE/MiniVeros-Autodiff/results/, named
+"{variant}__{timestamp}.npz" -- every variant run in one invocation shares
+the same timestamp. Re-running (e.g. just `--variant acc_basic`) adds a new
+timestamped file alongside older ones rather than overwriting, so
+plot_matrix_report.py can pick a specific snapshot with --timestamp, or
+the newest one per variant with the default "latest". A separate plotting
+step (plot_matrix_report.py) reads these back in -- kept separate so
+re-plotting doesn't require re-running the (slow) simulations.
 
 acc variants run a longer horizon than global ones -- global_4deg is much
 more expensive per step (bigger grid + real climatology forcing).
@@ -25,6 +29,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -54,7 +59,7 @@ RUN_CONFIG = {
 SNAPSHOT_FIELDS = ("temp", "psi")
 
 
-def run_variant(variant, veros_path):
+def run_variant(variant, veros_path, run_timestamp):
     name, family, overrides = variant["name"], variant["family"], variant["overrides"]
     group = FAMILIES[family]["group"]
     cfg = variant.get("run_config", RUN_CONFIG[group])
@@ -86,6 +91,8 @@ def run_variant(variant, veros_path):
         family=np.asarray(family),
         group=np.asarray(group),
         overrides_json=np.asarray(json.dumps(overrides)),
+        generated_at=np.asarray(run_timestamp),
+        run_config_json=np.asarray(json.dumps(dict(n_steps=n_steps, record_interval=record_interval, time_n_steps=time_n_steps))),
     )
     for field, data in errors.items():
         for key in ("max_abs_errors", "max_rel_errors", "mean_abs_errors", "median_abs_errors"):
@@ -103,7 +110,7 @@ def run_variant(variant, veros_path):
         out[f"{field}_real_frames"] = np.stack([s[field] for s in real_states])
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / f"{name}.npz"
+    out_path = RESULTS_DIR / f"{name}__{run_timestamp}.npz"
     np.savez(out_path, **out)
     print(f"    saved {out_path}")
 
@@ -130,6 +137,10 @@ def main():
     else:
         selected = VARIANTS
 
+    # one timestamp for the whole invocation, so a full run's variants share
+    # a snapshot; a partial rerun (--variant/--group) gets its own, newer one
+    run_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
     for variant in selected:
         if args.steps or args.record_interval or args.time_steps:
             group = FAMILIES[variant["family"]]["group"]
@@ -141,7 +152,7 @@ def main():
             if args.time_steps:
                 base["time_n_steps"] = args.time_steps
             variant = dict(variant, run_config=base)
-        run_variant(variant, args.veros_path)
+        run_variant(variant, args.veros_path, run_timestamp)
 
 
 if __name__ == "__main__":

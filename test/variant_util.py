@@ -131,9 +131,21 @@ def build_mini_variant(name, family, overrides, n_steps, veros_path, record_inte
     import jax
     jax.config.update("jax_enable_x64", True)
 
+    from mini_veros.state import Tendencies
+
     setup_mod = importlib.import_module(FAMILIES[family]["mini_module"])
     model, step0, forcing_fn = setup_mod.build()
     model = _route_overrides(model, overrides)
+
+    # step0.tendency_m1/m2 were zero-inited against the pre-override config
+    # by setup_mod.build() -- Tendencies.init's field population is gated on
+    # config flags (see state.py), so an override that flips a gate (e.g.
+    # enable_tke_superbee_advection) leaves fields the new config expects
+    # (e.g. dtke) as None instead of zero. Re-init against the final config;
+    # safe since these are all-zero AB2 seed values at t=0 either way.
+    nisle = model.boundary_conditions.psin.shape[-1]
+    zero_tend = Tendencies.init(model.config, nisle)
+    step0 = dataclasses.replace(step0, tendency_m1=zero_tend, tendency_m2=zero_tend)
 
     prog_fields = _prognostic_fields(model.config.enable_eke, model.config.enable_tke)
     state_initial = {name_: np.asarray(getattr(step0.state, name_)) for name_ in prog_fields}

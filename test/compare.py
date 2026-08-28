@@ -114,8 +114,9 @@ def build_mini(setup_name, n_steps, veros_path):
     s0 = {name: np.asarray(getattr(step0.state, name)) for name in state_fields}
 
     step = step0
-    for _ in range(n_steps):
-        step = loop.step(model, step, forcing_fn(model, step.state))
+    with jax.disable_jit():
+        for _ in range(n_steps):
+            step = loop.step(model, step, forcing_fn(model, step.state))
 
     s_final = {name: np.asarray(getattr(step.state, name)) for name in state_fields}
 
@@ -154,8 +155,20 @@ def build_real(setup_name, veros_path, n_steps):
     bc = {name: field(name) for name in BC_FIELDS}
     s0 = {name: field(name)[..., vs.tau] for name in state_fields}
 
-    for _ in range(n_steps):
-        sim.step(sim.state)
+    import jax
+
+    # only the step loop runs under disable_jit -- veros's only jax.jit site is
+    # routines.py's veros_kernel wrapper (routines.py:317), so this makes every
+    # step()'s kernel call eager and a state mismatch below reflect the port
+    # itself, not XLA fusion/optimization choices. setup() stays jitted: it's
+    # deterministic grid/topology build, and island.py's isleperim deliberately
+    # round-trips through numpy/scipy (land-mass labelling), which only survives
+    # its onp-array being fed back into a veros_kernel because jax.jit's tracing
+    # silently upcasts it -- disabling jit that early breaks on a bare
+    # numpy.ndarray having no .at attribute.
+    with jax.disable_jit():
+        for _ in range(n_steps):
+            sim.step(sim.state)
 
     vs = sim.state.variables
     s_final = {name: field(name)[..., vs.tau] for name in state_fields}

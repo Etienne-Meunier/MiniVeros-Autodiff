@@ -19,10 +19,8 @@ run-to-run float noise is a bug, full stop. Below: concrete numbers from
       solver (same pivoting/regularization), or whether the docstring is
       rationalizing a real gap.
 
-- [ ] **Establish the actual noise floor first.** No baseline exists for
-      "how much do two veros runs of the *same* setup differ" (solver
-      tolerance, threading, whatever). Run real veros twice, diff against
-      itself, use *that* as the pass bound — not an assumed rtol=1e-6.
+- [x] **Establish the actual noise floor first.** (Report on noise floor) 
+  -> 0.0 no difference between 2 veros run
 
 - [ ] **u/v relative error climbs from ~1e-4 to ~1e-2 over the run in
       several nominally-passing variants** (acc_basic, global_default,

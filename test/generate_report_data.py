@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Long-rollout data generator for the trust report (see ../TRUST_REPORT.md).
+Long-rollout data generator for the trust report (see ../report/trust_report.md).
 
 Runs mini_veros vs real veros for each setup over a longer horizon than the
 quick regression checks, recording:
@@ -40,9 +40,9 @@ REAL_SETUP_CLASS = {
 # (n_steps, record_interval) -- global_4deg is much more expensive per step
 # (larger grid + real climatology forcing), so it gets a shorter horizon.
 RUN_CONFIG = {
-    "acc_basic": (300, 10),
-    "acc": (300, 10),
-    "global_4deg": (300, 10),
+    "acc_basic": (30000, 100),
+    "acc": (30000, 100),
+    "global_4deg": (30000, 100),
 }
 
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))

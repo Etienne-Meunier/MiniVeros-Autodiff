@@ -7,8 +7,9 @@ two independent runs of the same variant. Answers TODO.md's "establish the
 actual noise floor first" -- the baseline test_matrix.py's atol/rtol should
 be judged against, instead of an assumed number.
 
-Kept separate from report.md (the mini_veros-vs-veros matrix report) since
-this is about real veros alone, not the mini/real comparison.
+Kept separate from report/matrix_report.md (the mini_veros-vs-veros matrix
+report) since this is about real veros alone, not the mini/real comparison.
+Writes to report/noise_floor_report.md in the repo.
 
 Usage:
     python test/generate_noise_floor_report.py
@@ -62,7 +63,7 @@ def write_report(rows):
 
     if not rows:
         lines.append(f"No noise_floor_*.npz found in {RESULTS_DIR}. Run test/measure_noise_floor.py first.")
-        out = BASE_DIR / "noise_floor_report.md"
+        out = REPO_ROOT / "report" / "noise_floor_report.md"
         out.write_text("\n".join(lines) + "\n")
         return out
 
@@ -92,7 +93,7 @@ def write_report(rows):
             lines.append(f"| {field} | {val:.2e} |")
         lines.append("")
 
-    out = BASE_DIR / "noise_floor_report.md"
+    out = REPO_ROOT / "report" / "noise_floor_report.md"
     out.write_text("\n".join(lines) + "\n")
     return out
 

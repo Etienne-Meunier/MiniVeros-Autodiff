@@ -3,18 +3,30 @@
 Renders the trust report from $STORE/MiniVeros-Autodiff/results/*.npz
 (produced by generate_matrix_data.py): per-variant error-evolution curves,
 a mini_veros/veros side-by-side field-evolution gif, a timing summary
-across the whole matrix, and a short report.md tying it together.
+across the whole matrix, and a short matrix_report.md tying it together.
+Data stays in $STORE (results/*.npz can be regenerated); the report and
+its figures are committed to the repo, under report/matrix_figures/ and
+report/matrix_report.md.
+
+Each result file is named "{variant}__{timestamp}.npz" -- re-running
+generate_matrix_data.py adds a new one rather than overwriting, so
+--timestamp picks which snapshot to render. Default "latest" takes the
+newest file per variant (variants can end up on different snapshots after
+a partial rerun -- the report's first line says which timestamp(s) it used).
 
 Kept separate from data generation so re-plotting doesn't require
 re-running the (slow) simulations.
 
 Usage:
-    python test/plot_matrix_report.py
+    python test/plot_matrix_report.py                     # latest snapshot per variant
+    python test/plot_matrix_report.py --timestamp 20260828T143000Z
 """
 
+import argparse
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import imageio.v2 as imageio
@@ -32,7 +44,8 @@ from setups_matrix import VARIANTS
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
 BASE_DIR = STORE / "MiniVeros-Autodiff"
 RESULTS_DIR = BASE_DIR / "results"
-FIG_DIR = BASE_DIR / "figures"
+REPORT_DIR = REPO_ROOT / "report"
+FIG_DIR = REPORT_DIR / "matrix_figures"
 
 # same tolerance policy as test_matrix.py -- point-wise rel error for most
 # fields, scale-normalized for psi (arbitrary per-island gauge)
@@ -150,16 +163,33 @@ def variant_status(name, data):
     return ok, worst
 
 
-def render_variant(variant):
+def resolve_npz(name, timestamp):
+    """Path to variant `name`'s .npz for the requested snapshot.
+    "latest" picks the newest timestamped file for that variant (sorts
+    chronologically since the timestamp format is zero-padded/lexical);
+    otherwise the file must match "{name}__{timestamp}.npz" exactly."""
+    candidates = sorted(RESULTS_DIR.glob(f"{name}__*.npz"))
+    if not candidates:
+        return None
+    if timestamp == "latest":
+        return candidates[-1]
+    exact = RESULTS_DIR / f"{name}__{timestamp}.npz"
+    return exact if exact.exists() else None
+
+
+def render_variant(variant, timestamp):
     name = variant["name"]
-    npz_path = RESULTS_DIR / f"{name}.npz"
-    if not npz_path.exists():
+    npz_path = resolve_npz(name, timestamp)
+    if npz_path is None:
         return None
     data = np.load(npz_path)
 
     err_png = plot_error_evolution(name, data)
     gifs = [g for f in SNAPSHOT_FIELDS if (g := make_gif(name, data, f)) is not None]
     ok, worst_err = variant_status(name, data)
+
+    generated_at = str(data["generated_at"]) if "generated_at" in data.files else None
+    run_config = json.loads(str(data["run_config_json"])) if "run_config_json" in data.files else None
 
     return dict(
         name=name,
@@ -172,6 +202,8 @@ def render_variant(variant):
         worst_err=worst_err,
         err_png=err_png,
         gifs=gifs,
+        generated_at=generated_at,
+        run_config=run_config,
     )
 
 
@@ -200,17 +232,49 @@ def plot_timing_summary(rows):
     return out
 
 
-def write_report(rows, timing_png):
+def format_ts(ts):
+    """Run timestamp ("20260828T082645Z") as a natural date/hour string, for
+    humans reading the report's provenance line alongside the raw stamp."""
+    try:
+        return datetime.strptime(ts, "%Y%m%dT%H%M%SZ").strftime("%Y-%m-%d %H:%M:%S UTC")
+    except ValueError:
+        return ts
+
+
+def timestamp_summary(rows, requested):
+    """First-line banner naming which snapshot(s) the report reflects: the
+    single shared timestamp if every variant resolved to the same one, or
+    a per-timestamp breakdown when "latest" pulled variants from different
+    runs (e.g. after a partial `generate_matrix_data.py --variant X`)."""
+    known = [r for r in rows if r["generated_at"]]
+    if not known:
+        return f"timestamp: {requested} (no generation timestamp recorded for these results)."
+
+    timestamps = {r["generated_at"] for r in known}
+    if len(timestamps) == 1:
+        ts = next(iter(timestamps))
+        return f"timestamp: {requested} -> `{ts}` ({format_ts(ts)})."
+
+    by_ts = {}
+    for r in known:
+        by_ts.setdefault(r["generated_at"], []).append(r["name"])
+    breakdown = "; ".join(f"`{ts}` ({format_ts(ts)}): {', '.join(sorted(vs))}" for ts, vs in sorted(by_ts.items()))
+    return f"timestamp: {requested} -> mixed snapshots -- {breakdown}."
+
+
+def write_report(rows, timing_png, requested_timestamp):
     rows = sorted(rows, key=lambda r: (r["group"], r["name"]))
     lines = [
         "# mini_veros vs veros: comparison matrix report",
+        "",
+        timestamp_summary(rows, requested_timestamp),
         "",
         f"{sum(r['ok'] for r in rows)}/{len(rows)} variants within tolerance "
         f"(rel error < {RTOL_OK:.0e}, psi scale-normalized < {PSI_SCALE_TOL:.0e}).",
         "",
     ]
     if timing_png:
-        lines += [f"![timing]({timing_png.relative_to(BASE_DIR)})", ""]
+        lines += [f"![timing]({timing_png.relative_to(REPORT_DIR)})", ""]
 
     lines += ["| variant | group | status | worst error | mini ms/step | veros ms/step | speedup |", "|---|---|---|---|---|---|---|"]
     for r in rows:
@@ -225,30 +289,40 @@ def write_report(rows, timing_png):
         lines.append(f"### {r['name']} ({'ok' if r['ok'] else 'FAIL'})")
         if r["overrides"]:
             lines.append(f"overrides: `{r['overrides']}`")
+        if r["generated_at"]:
+            cfg = r["run_config"]
+            cfg_note = f", {cfg['n_steps']} steps @ interval {cfg['record_interval']}" if cfg else ""
+            lines.append(f"generated: `{r['generated_at']}`{cfg_note}")
         lines.append("")
-        lines.append(f"![errors]({r['err_png'].relative_to(BASE_DIR)})")
+        lines.append(f"![errors]({r['err_png'].relative_to(REPORT_DIR)})")
         for g in r["gifs"]:
-            lines.append(f"![{g.stem}]({g.relative_to(BASE_DIR)})")
+            lines.append(f"![{g.stem}]({g.relative_to(REPORT_DIR)})")
         lines.append("")
 
-    out = BASE_DIR / "report.md"
+    out = REPORT_DIR / "matrix_report.md"
     out.write_text("\n".join(lines))
     return out
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--timestamp", default="latest",
+                         help="results snapshot to render: 'latest' (default) takes the newest .npz per "
+                              "variant, or an exact run timestamp like 20260828T143000Z")
+    args = parser.parse_args()
+
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     rows = []
     for variant in VARIANTS:
-        row = render_variant(variant)
+        row = render_variant(variant, args.timestamp)
         if row is None:
-            print(f"skip {variant['name']}: no {RESULTS_DIR / (variant['name'] + '.npz')}")
+            print(f"skip {variant['name']}: no {RESULTS_DIR / (variant['name'] + '__*.npz')} matching timestamp {args.timestamp!r}")
             continue
         rows.append(row)
         print(f"{row['name']}: {'ok' if row['ok'] else 'FAIL'}  worst_err={row['worst_err']:.2e}")
 
     timing_png = plot_timing_summary(rows)
-    report = write_report(rows, timing_png)
+    report = write_report(rows, timing_png, args.timestamp)
     print(f"\nwrote {report}")
 
 

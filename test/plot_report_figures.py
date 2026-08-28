@@ -2,8 +2,9 @@
 """
 Renders PNG figures from $STORE/MiniVeros-Autodiff/results/*.npz (produced
 by generate_report_data.py) for the trust report: error-evolution curves
-and mini/real/diff snapshot heatmaps. Writes into
-$STORE/MiniVeros-Autodiff/results/figures/.
+and mini/real/diff snapshot heatmaps. Data stays in $STORE (results/*.npz
+can be regenerated); figures and the report (report/trust_report.md) are
+committed to the repo, under report/.
 
 Usage:
     python test/plot_report_figures.py
@@ -22,7 +23,8 @@ import matplotlib.pyplot as plt
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
 RESULTS_DIR = STORE / "MiniVeros-Autodiff" / "results"
-FIG_DIR = RESULTS_DIR / "figures"
+REPORT_DIR = REPO_ROOT / "report"
+FIG_DIR = REPORT_DIR / "figures"
 
 SETUPS = ["acc_basic", "acc", "global_4deg"]
 FIELDS = ["u", "v", "temp", "salt", "psi", "tke", "eke"]
@@ -153,20 +155,74 @@ def plot_pressure_evolution():
     return out
 
 
+def final_step_errors(setup_name, data):
+    """Final-step (max_abs, mean_abs) per field for the report table; psi is scale-normalized (see plot_error_evolution)."""
+    rows = []
+    for field in FIELDS:
+        if field == "psi" or f"err_{field}_max_abs_errors" not in data:
+            continue
+        rows.append((field, float(data[f"err_{field}_max_abs_errors"][-1]), float(data[f"err_{field}_mean_abs_errors"][-1])))
+    if "err_psi_max_abs_errors" in data:
+        scale = np.max(np.abs(data["psi_real"])) if "psi_real" in data else 1.0
+        scale = scale if scale > 0 else 1.0
+        rows.append(("psi (scale-norm.)", float(data["err_psi_max_abs_errors"][-1] / scale), None))
+    return rows
+
+
+def write_report(rows, pressure_png):
+    lines = [
+        "# mini_veros vs veros: trust report",
+        "",
+        "Long-rollout comparison (300 steps) per setup. Raw data lives in "
+        "`$STORE/MiniVeros-Autodiff/results/` (regenerate with `test/generate_report_data.py`); "
+        "figures below are committed under `report/figures/`.",
+        "",
+    ]
+    for r in rows:
+        lines.append(f"## {r['name']}")
+        lines.append("")
+        lines.append("| field | max abs err (final step) | mean abs err (final step) |")
+        lines.append("|---|---|---|")
+        for field, max_abs, mean_abs in r["errors"]:
+            mean_str = f"{mean_abs:.2e}" if mean_abs is not None else "-"
+            lines.append(f"| {field} | {max_abs:.2e} | {mean_str} |")
+        lines.append("")
+        lines.append(f"![errors]({r['err_png'].relative_to(REPORT_DIR)})")
+        for s in r["snapshots"]:
+            lines.append(f"![{s.stem}]({s.relative_to(REPORT_DIR)})")
+        lines.append("")
+    if pressure_png:
+        lines += [
+            "## pressure solver (acc_basic, enable_streamfunction=False)",
+            "",
+            f"![pressure]({pressure_png.relative_to(REPORT_DIR)})",
+            "",
+        ]
+    out = REPORT_DIR / "trust_report.md"
+    out.write_text("\n".join(lines))
+    return out
+
+
 def main():
     FIG_DIR.mkdir(parents=True, exist_ok=True)
-    p = plot_pressure_evolution()
-    if p:
-        print("pressure solver ->", p)
+    pressure_png = plot_pressure_evolution()
+    if pressure_png:
+        print("pressure solver ->", pressure_png)
+
+    rows = []
     for setup_name in SETUPS:
         npz_path = RESULTS_DIR / f"{setup_name}.npz"
         if not npz_path.exists():
             print(f"skip {setup_name}: no {npz_path}")
             continue
         data = np.load(npz_path)
-        p1 = plot_error_evolution(setup_name, data)
-        p2 = plot_snapshots(setup_name, data)
-        print(setup_name, "->", p1, *p2)
+        err_png = plot_error_evolution(setup_name, data)
+        snapshots = plot_snapshots(setup_name, data)
+        print(setup_name, "->", err_png, *snapshots)
+        rows.append(dict(name=setup_name, err_png=err_png, snapshots=snapshots, errors=final_step_errors(setup_name, data)))
+
+    report = write_report(rows, pressure_png)
+    print(f"\nwrote {report}")
 
 
 if __name__ == "__main__":
