@@ -47,10 +47,12 @@ RESULTS_DIR = STORE / "MiniVeros-Autodiff" / "results"
 
 # (n_steps, record_interval, time_n_steps) per group -- acc is cheap enough
 # for a long horizon; global_4deg's bigger grid + climatology forcing gets a
-# shorter one so the whole matrix finishes in reasonable time.
+# shorter one so the whole matrix finishes in reasonable time. record_interval
+# must divide n_steps (variant_util._run_steps runs the whole thing as one
+# compiled scan); 150 is the nearest clean divisor of 365*30 to the old 100.
 RUN_CONFIG = {
-    "acc": dict(n_steps=300, record_interval=10, time_n_steps=20),
-    "global": dict(n_steps=60, record_interval=5, time_n_steps=10),
+    "acc": dict(n_steps=365*30, record_interval=150, time_n_steps=20),
+    "global": dict(n_steps=365*30, record_interval=150, time_n_steps=10),
 }
 
 # Fields snapshotted at every recorded step for the report's gifs. "temp"
@@ -152,7 +154,14 @@ def main():
             if args.time_steps:
                 base["time_n_steps"] = args.time_steps
             variant = dict(variant, run_config=base)
-        run_variant(variant, args.veros_path, run_timestamp)
+        try:
+            run_variant(variant, args.veros_path, run_timestamp)
+        except Exception as e:
+            # some variants (e.g. acc_minimal, which strips friction/mixing terms)
+            # are physically unstable and expected to diverge -- real veros's own
+            # divergence check raises RuntimeError mid-run; don't let one variant's
+            # failure abort the rest of the matrix.
+            print(f"    FAILED: {variant['name']}: {e}")
 
 
 if __name__ == "__main__":

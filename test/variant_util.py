@@ -62,52 +62,77 @@ def _block(tree):
     return tree
 
 
+def _scan_run(model, step0, forcing_fn, prog_fields, n_steps, log_every):
+    """
+    Compiled-scan run over n_steps (n_steps must be a multiple of log_every),
+    recording log_select_fn's output every log_every steps.
+
+    Deliberately mini_veros.loop.run minus its NaN short-circuit (the
+    lax.cond("already stopped", ...) + eqx.error_if that basic.py's own
+    __main__ relies on): the matrix intentionally includes variants that
+    may diverge, and a hard error would abort generate_matrix_data.py's
+    whole run instead of just recording that variant's (NaN) trajectory --
+    real veros's side never checks either, so this keeps both sides
+    directly comparable.
+    """
+    from jax import lax
+
+    from mini_veros import loop
+
+    def log_select_fn(step):
+        return {name_: getattr(step.state, name_) for name_ in prog_fields}
+
+    def inner(step, _):
+        step = loop.step(model, step, forcing_fn(model, step.state))
+        return step, None
+
+    def outer(step, _):
+        step, _ = lax.scan(inner, step, length=log_every)
+        return step, log_select_fn(step)
+
+    return lax.scan(outer, step0, length=n_steps // log_every)
+
+
 def _run_steps(model, step0, forcing_fn, prog_fields, n_steps, record_interval, time_n_steps):
     """
-    Hand-rolled per-step jax.jit loop.
+    Run n_steps steps, recording state every record_interval steps (if set) and
+    timing time_n_steps extra steps afterward (if set).
 
-    loop.run's NaN-check short circuit (lax.cond between "already stopped"
-    and "do one step") requires both branches to return an IntegratorState
-    with identical pytree structure -- but Tendencies/DiagnosticState fields
-    default to None and are only populated by whichever physics terms are
-    active (e.g. dtke, dtemp_mix, dpsi, K_diss_h), so the *initial*
-    integrator_state's None-pattern only matches "after one real step"'s
-    None-pattern for the exact baseline configs the setups were written
-    against (acc_basic, acc_full, global_4deg's defaults) -- any override
-    that changes which terms are active/inactive breaks that match and
-    lax.cond raises "branch outputs must have the same pytree structure".
-    A plain per-step jax.jit call has no such branch, so it works
-    uniformly across the whole matrix; loop.run's single-compiled-scan is
-    only safe for those three unmodified setups (see their own __main__
-    blocks and generate_pressure_report_data.py, which already uses this
-    same per-step pattern for exactly this reason on the pressure-solver
-    variant).
+    n_steps must be a multiple of record_interval (n_steps itself if
+    record_interval is None) -- raises otherwise, since the whole run is one
+    compiled scan (_scan_run), same execution path as the setups' own
+    __main__ blocks.
     """
+    import equinox as eqx
     import jax
 
     from mini_veros import loop
 
-    step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn(model, s.state)))
-    _block(step_jit(step0))  # trace/compile, discarded -- n_steps below must start from step0, not this warm-up step
-    step = step0
+    log_every = record_interval if record_interval is not None else max(n_steps, 1)
+    if n_steps % log_every != 0:
+        raise ValueError(f"n_steps ({n_steps}) must be a multiple of record_interval ({log_every})")
 
     timesteps, recorded_states = [], []
     if record_interval is not None:
         timesteps.append(0)
         recorded_states.append({name_: np.asarray(getattr(step0.state, name_)) for name_ in prog_fields})
 
-    for i in range(n_steps):
-        step = step_jit(step)
-        if record_interval is not None and (i + 1) % record_interval == 0:
-            step = _block(step)
-            timesteps.append(i + 1)
-            recorded_states.append({name_: np.asarray(getattr(step.state, name_)) for name_ in prog_fields})
+    step = step0
+    if n_steps > 0:
+        scan_run = eqx.filter_jit(lambda s: _scan_run(model, s, forcing_fn, prog_fields, n_steps, log_every))
+        step, logs = _block(scan_run(step0))
+        if record_interval is not None:
+            for i in range(n_steps // log_every):
+                timesteps.append((i + 1) * log_every)
+                recorded_states.append({name_: np.asarray(v[i]) for name_, v in logs.items()})
 
-    step = _block(step)
     state_final = {name_: np.asarray(getattr(step.state, name_)) for name_ in prog_fields}
 
     sec_per_step = None
     if time_n_steps > 0:
+        step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn(model, s.state)))
+        _block(step_jit(step))  # trace/compile, discarded
+
         t0 = time.perf_counter()
         for _ in range(time_n_steps):
             step = step_jit(step)
@@ -119,7 +144,8 @@ def _run_steps(model, step0, forcing_fn, prog_fields, n_steps, record_interval, 
 
 def build_mini_variant(name, family, overrides, n_steps, veros_path, record_interval=None, time_n_steps=0):
     """
-    Build mini_veros for `family`, apply `overrides`, and run n_steps.
+    Build mini_veros for `family` with `overrides` baked into its config/params
+    from the start (see each setup's build()), and run n_steps.
 
     Returns (model, state_initial, state_final, sec_per_step, timesteps, recorded_states).
     timesteps/recorded_states are [] unless record_interval is set.
@@ -131,21 +157,8 @@ def build_mini_variant(name, family, overrides, n_steps, veros_path, record_inte
     import jax
     jax.config.update("jax_enable_x64", True)
 
-    from mini_veros.state import Tendencies
-
     setup_mod = importlib.import_module(FAMILIES[family]["mini_module"])
-    model, step0, forcing_fn = setup_mod.build()
-    model = _route_overrides(model, overrides)
-
-    # step0.tendency_m1/m2 were zero-inited against the pre-override config
-    # by setup_mod.build() -- Tendencies.init's field population is gated on
-    # config flags (see state.py), so an override that flips a gate (e.g.
-    # enable_tke_superbee_advection) leaves fields the new config expects
-    # (e.g. dtke) as None instead of zero. Re-init against the final config;
-    # safe since these are all-zero AB2 seed values at t=0 either way.
-    nisle = model.boundary_conditions.psin.shape[-1]
-    zero_tend = Tendencies.init(model.config, nisle)
-    step0 = dataclasses.replace(step0, tendency_m1=zero_tend, tendency_m2=zero_tend)
+    model, step0, forcing_fn = setup_mod.build(overrides)
 
     prog_fields = _prognostic_fields(model.config.enable_eke, model.config.enable_tke)
     state_initial = {name_: np.asarray(getattr(step0.state, name_)) for name_ in prog_fields}
