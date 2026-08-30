@@ -93,10 +93,10 @@ def _scan_run(model, step0, forcing_fn, prog_fields, n_steps, log_every):
     return lax.scan(outer, step0, length=n_steps // log_every)
 
 
-def _run_steps(model, step0, forcing_fn, prog_fields, n_steps, record_interval, time_n_steps):
+def _run_steps(model, step0, forcing_fn, prog_fields, n_steps, record_interval):
     """
-    Run n_steps steps, recording state every record_interval steps (if set) and
-    timing time_n_steps extra steps afterward (if set).
+    Run n_steps steps, recording state every record_interval steps (if set)
+    and timing the run as sec_per_step = elapsed / n_steps.
 
     n_steps must be a multiple of record_interval (n_steps itself if
     record_interval is None) -- raises otherwise, since the whole run is one
@@ -104,9 +104,6 @@ def _run_steps(model, step0, forcing_fn, prog_fields, n_steps, record_interval, 
     __main__ blocks.
     """
     import equinox as eqx
-    import jax
-
-    from mini_veros import loop
 
     log_every = record_interval if record_interval is not None else max(n_steps, 1)
     if n_steps % log_every != 0:
@@ -118,9 +115,12 @@ def _run_steps(model, step0, forcing_fn, prog_fields, n_steps, record_interval, 
         recorded_states.append({name_: np.asarray(getattr(step0.state, name_)) for name_ in prog_fields})
 
     step = step0
+    sec_per_step = None
     if n_steps > 0:
         scan_run = eqx.filter_jit(lambda s: _scan_run(model, s, forcing_fn, prog_fields, n_steps, log_every))
+        t0 = time.perf_counter()
         step, logs = _block(scan_run(step0))
+        sec_per_step = (time.perf_counter() - t0) / n_steps
         if record_interval is not None:
             for i in range(n_steps // log_every):
                 timesteps.append((i + 1) * log_every)
@@ -128,28 +128,17 @@ def _run_steps(model, step0, forcing_fn, prog_fields, n_steps, record_interval, 
 
     state_final = {name_: np.asarray(getattr(step.state, name_)) for name_ in prog_fields}
 
-    sec_per_step = None
-    if time_n_steps > 0:
-        step_jit = jax.jit(lambda s: loop.step(model, s, forcing_fn(model, s.state)))
-        _block(step_jit(step))  # trace/compile, discarded
-
-        t0 = time.perf_counter()
-        for _ in range(time_n_steps):
-            step = step_jit(step)
-        _block(step)
-        sec_per_step = (time.perf_counter() - t0) / time_n_steps
-
     return state_final, sec_per_step, timesteps, recorded_states
 
 
-def build_mini_variant(name, family, overrides, n_steps, veros_path, record_interval=None, time_n_steps=0):
+def build_mini_variant(name, family, overrides, n_steps, veros_path, record_interval=None):
     """
     Build mini_veros for `family` with `overrides` baked into its config/params
     from the start (see each setup's build()), and run n_steps.
 
     Returns (model, state_initial, state_final, sec_per_step, timesteps, recorded_states).
     timesteps/recorded_states are [] unless record_interval is set.
-    sec_per_step is None unless time_n_steps > 0.
+    sec_per_step is None unless n_steps > 0.
     """
     sys.path.insert(0, str(REPO_ROOT / "mini-veros"))
     sys.path.insert(0, str(veros_path))
@@ -164,13 +153,13 @@ def build_mini_variant(name, family, overrides, n_steps, veros_path, record_inte
     state_initial = {name_: np.asarray(getattr(step0.state, name_)) for name_ in prog_fields}
 
     state_final, sec_per_step, timesteps, recorded_states = _run_steps(
-        model, step0, forcing_fn, prog_fields, n_steps, record_interval, time_n_steps
+        model, step0, forcing_fn, prog_fields, n_steps, record_interval
     )
 
     return model, state_initial, state_final, sec_per_step, timesteps, recorded_states
 
 
-def build_real_variant(name, family, overrides, n_steps, veros_path, record_interval=None, time_n_steps=0):
+def build_real_variant(name, family, overrides, n_steps, veros_path, record_interval=None):
     """
     Build real veros for `family`, apply `overrides` via VerosSetup's
     `override=` dict, and run n_steps. Same return contract as
@@ -208,20 +197,16 @@ def build_real_variant(name, family, overrides, n_steps, veros_path, record_inte
         timesteps.append(0)
         recorded_states.append(state_initial.copy())
 
+    sec_per_step = None
+    t0 = time.perf_counter()
     for i in range(n_steps):
         sim.step(sim.state)
         if record_interval is not None and (i + 1) % record_interval == 0:
             timesteps.append(i + 1)
             recorded_states.append(field_now())
 
-    state_final = field_now()
-
-    sec_per_step = None
-    if time_n_steps > 0:
-        t0 = time.perf_counter()
-        for _ in range(time_n_steps):
-            sim.step(sim.state)
-        np.asarray(sim.state.variables.temp)  # force sync before stopping the clock
-        sec_per_step = (time.perf_counter() - t0) / time_n_steps
+    state_final = field_now()  # forces sync before the clock stops
+    if n_steps > 0:
+        sec_per_step = (time.perf_counter() - t0) / n_steps
 
     return sim, state_initial, state_final, sec_per_step, timesteps, recorded_states

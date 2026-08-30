@@ -21,7 +21,7 @@ Usage:
     python test/generate_matrix_data.py                    # every variant
     python test/generate_matrix_data.py --variant acc_basic
     python test/generate_matrix_data.py --group acc         # acc family only
-    python test/generate_matrix_data.py --steps 4 --record-interval 2 --time-steps 2 --variant acc_basic   # fast smoke test
+    python test/generate_matrix_data.py --steps 4 --record-interval 2 --variant acc_basic   # fast smoke test
 """
 
 import argparse
@@ -45,14 +45,16 @@ DEFAULT_VEROS_PATH = REPO_ROOT / "veros"
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
 RESULTS_DIR = STORE / "MiniVeros-Autodiff" / "results"
 
-# (n_steps, record_interval, time_n_steps) per group -- acc is cheap enough
-# for a long horizon; global_4deg's bigger grid + climatology forcing gets a
-# shorter one so the whole matrix finishes in reasonable time. record_interval
-# must divide n_steps (variant_util._run_steps runs the whole thing as one
-# compiled scan); 150 is the nearest clean divisor of 365*30 to the old 100.
+# (n_steps, record_interval) per group -- acc is cheap enough for a long
+# horizon; global_4deg's bigger grid + climatology forcing gets a shorter one
+# so the whole matrix finishes in reasonable time. record_interval must divide
+# n_steps (variant_util._run_steps runs the whole thing as one compiled scan);
+# 150 is the nearest clean divisor of 365*30 to the old 100. sec_per_step is
+# always measured as elapsed / n_steps over this same run -- no separate
+# timing pass.
 RUN_CONFIG = {
-    "acc": dict(n_steps=365*30, record_interval=150, time_n_steps=20),
-    "global": dict(n_steps=365*30, record_interval=150, time_n_steps=10),
+    "acc": dict(n_steps=365*30, record_interval=150),
+    "global": dict(n_steps=365*30, record_interval=150),
 }
 
 # Fields snapshotted at every recorded step for the report's gifs. "temp"
@@ -65,18 +67,17 @@ def run_variant(variant, veros_path, run_timestamp):
     name, family, overrides = variant["name"], variant["family"], variant["overrides"]
     group = FAMILIES[family]["group"]
     cfg = variant.get("run_config", RUN_CONFIG[group])
-    n_steps, record_interval, time_n_steps = cfg["n_steps"], cfg["record_interval"], cfg["time_n_steps"]
+    n_steps, record_interval = cfg["n_steps"], cfg["record_interval"]
 
-    print(f"--- {name} ({group}): {n_steps} steps, recording every {record_interval}, "
-          f"timing {time_n_steps} steps ---")
+    print(f"--- {name} ({group}): {n_steps} steps, recording every {record_interval} ---")
 
     t0 = time.time()
     _, mini_s0, mini_sf, mini_sec, mini_ts, mini_states = build_mini_variant(
-        name, family, overrides, n_steps, veros_path, record_interval, time_n_steps
+        name, family, overrides, n_steps, veros_path, record_interval
     )
     t1 = time.time()
     _, real_s0, real_sf, real_sec, real_ts, real_states = build_real_variant(
-        name, family, overrides, n_steps, veros_path, record_interval, time_n_steps
+        name, family, overrides, n_steps, veros_path, record_interval
     )
     t2 = time.time()
     print(f"    mini: {t1 - t0:.1f}s ({mini_sec * 1000:.2f} ms/step)   "
@@ -94,7 +95,7 @@ def run_variant(variant, veros_path, run_timestamp):
         group=np.asarray(group),
         overrides_json=np.asarray(json.dumps(overrides)),
         generated_at=np.asarray(run_timestamp),
-        run_config_json=np.asarray(json.dumps(dict(n_steps=n_steps, record_interval=record_interval, time_n_steps=time_n_steps))),
+        run_config_json=np.asarray(json.dumps(dict(n_steps=n_steps, record_interval=record_interval))),
     )
     for field, data in errors.items():
         for key in ("max_abs_errors", "max_rel_errors", "mean_abs_errors", "median_abs_errors"):
@@ -124,7 +125,6 @@ def main():
     parser.add_argument("--veros-path", type=Path, default=DEFAULT_VEROS_PATH)
     parser.add_argument("--steps", type=int, default=None, help="override n_steps for every selected variant")
     parser.add_argument("--record-interval", type=int, default=None, help="override record_interval")
-    parser.add_argument("--time-steps", type=int, default=None, help="override time_n_steps")
     args = parser.parse_args()
 
     if not (args.veros_path / "veros" / "__init__.py").exists():
@@ -144,15 +144,13 @@ def main():
     run_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     for variant in selected:
-        if args.steps or args.record_interval or args.time_steps:
+        if args.steps or args.record_interval:
             group = FAMILIES[variant["family"]]["group"]
             base = dict(RUN_CONFIG[group])
             if args.steps:
                 base["n_steps"] = args.steps
             if args.record_interval:
                 base["record_interval"] = args.record_interval
-            if args.time_steps:
-                base["time_n_steps"] = args.time_steps
             variant = dict(variant, run_config=base)
         try:
             run_variant(variant, args.veros_path, run_timestamp)
