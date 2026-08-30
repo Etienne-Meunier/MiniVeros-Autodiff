@@ -1,0 +1,48 @@
+# wandb sweep for generate_matrix_data's variant matrix, consumed by
+# ../sweep_matrix_data.py. Grid method = every variant runs exactly once,
+# queue-distributed across however many `wandb agent` processes you launch
+# (e.g. one per g5k node) instead of running sequentially.
+#
+# `values` must stay in sync with setups_matrix.VARIANTS_BY_NAME's names --
+# no code path derives this file, so add/rename a variant there and mirror
+# it here.
+#
+# Launch (from repo root):
+#   wandb sweep test/sweep/matrix.yaml   # prints SWEEP_ID
+#   wandb agent SWEEP_ID                 # one per node, e.g. via g5k_launch_sweep.sh
+program: test/sweep_matrix_data.py
+method: grid
+parameters:
+  variant:
+    values:
+      - acc_basic
+      - acc_full
+      - acc_explicit_vert_friction
+      - acc_no_hor_friction
+      - acc_biharmonic_friction
+      - acc_noslip_lateral
+      - acc_ray_friction
+      - acc_bottom_friction_var
+      - acc_quadratic_bottom_friction
+      - acc_surface_pressure
+      - acc_hor_diffusion
+      - acc_biharmonic_mixing
+      - acc_no_neutral_diffusion
+      - acc_no_skew_diffusion
+      - acc_no_tke
+      - acc_tke_superbee_advection
+      - acc_eke_isopycnal_diffusion_off
+      - acc_eke_superbee_off
+      - acc_kappaH_profile_off
+      - acc_minimal
+      - acc_maximal
+      - global_default
+      - global_no_eke
+      - global_biharmonic_friction
+      - global_surface_pressure
+      - global_hor_diffusion
+      - global_biharmonic_mixing
+      - global_no_neutral_diffusion
+      - global_no_skew_diffusion
+      - global_minimal
+      - global_maximal
