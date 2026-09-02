@@ -18,34 +18,34 @@ A 30-year run cannot agree point-wise -- roundoff-level differences grow to the 
 
 For one field at one recorded step, let $m$ and $v$ be the mini_veros and veros fields flattened over the grid, $N$ their length, and $\overline{x}$ a spatial mean. Cells where either side is not finite are dropped before any of this.
 
-**Scale-normalized max error.** The largest point-wise disagreement, divided by the reference field's own magnitude :
+**Scale-normalized max error :** The largest point-wise disagreement, divided by the reference field's own magnitude :
 
 $$
 \mathrm{max\_norm} \;=\; \frac{\max_i \left| m_i - v_i \right|}{\mathrm{rms}(v)}, \qquad \mathrm{rms}(x) = \sqrt{\frac{1}{N}\sum_{i=1}^{N} x_i^2}
 $$
 
 
-**Relative $L_2$ error.** The whole-field distance :
+**Relative $L_2$ error :** The whole-field distance :
 
 $$
 \mathrm{rel\_L2} \;=\; \frac{\| m - v \|_2}{\| v \|_2}
 $$
 
 
-**Pattern correlation.** The Pearson correlation of the two fields' anomalies : 1 if same structure even shift by an offset :
+**Pattern correlation :** The Pearson correlation of the two fields' anomalies : 1 if same structure even shift by an offset :
 
 $$
 \mathrm{corr} \;=\; \frac{\sum_i (m_i - \overline{m})(v_i - \overline{v})}{\| m - \overline{m} \|_2 \; \| v - \overline{v} \|_2}
 $$
 
-**Agreement horizon.** The first recorded step at which any field's $\mathrm{max\_norm}$ crosses $\varepsilon = 10^{-6}$. 
+**Agreement horizon :** The first recorded step at which any field's $\mathrm{max\_norm}$ crosses $\varepsilon = 10^{-6}$. 
 
 $$
 T_{\mathrm{agree}} = \min \{ t \text{s.t} \mathrm{max\_norm}(t) > \varepsilon \}
 $$
 
 
-**Climatology ratio : ** compare average fields agains veros time variability
+**Climatology ratio :** compare average fields agains veros time variability
 
 Assuming that we reached an equilibrium at the second part of the run : 
 
