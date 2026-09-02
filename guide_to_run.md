@@ -47,20 +47,49 @@ where every script in `test/` (`generate_matrix_data.py`,
 `measure_noise_floor.py`, ...) actually writes (`$STORE/MiniVeros-Autodiff/...`),
 so `g5k sync model` should pull results back correctly.
 
-## Getting compute
+## Running the full matrix as a batch sweep (the usual case)
 
-Since `g5k launch` doesn't fit, get a plain interactive OAR job by hand:
+`test/sweep/run_matrix_oar.sh` is one chunk of the matrix as an OAR batch
+job. Submit several, **all with the same run timestamp**:
 
 ```
 g5k sync code                       # push current local state first
 ssh agrenoble
-oarsub -I -l walltime=2:00:00 --type allow_classic_ssh   # CPU job, no /gpu=
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+oarsub -l host=1,walltime=2:00:00 -n mvmatrix1 \
+  -O ~/oar_logs/matrix_${TS}_c1.out -E ~/oar_logs/matrix_${TS}_c1.err \
+  "bash ~/code/MiniVeros-Autodiff/test/sweep/run_matrix_oar.sh $TS acc_basic acc_full ..."
 ```
 
-Pick `walltime` to match what you're running — `test/measure_noise_floor.py`
-and `test/generate_matrix_data.py` variants take anywhere from seconds
-(`acc_basic`) to a few minutes (`global_*`, `--group global`) per variant on
-one core; the full 31-variant matrix run is the slow end of that range.
+The shared timestamp is not cosmetic. `plot_matrix_report.py` resolves
+`--timestamp latest` per variant, so chunks stamped at different times leave
+the report mixing runs of different lengths — which is how three crashed
+variants once came back as the report's only three "passing" rows. Pinning
+one timestamp lets `plot_matrix_report.py --strict` verify the whole table
+came from a single sweep.
+
+Sizing, measured: an `acc` variant is ~9 min (mini ~110 s + veros ~440 s), a
+`global` one ~12 min (~275 s + ~412 s). The full 31-variant matrix is ~5 h of
+compute, so ~4 acc or ~3 global variants per chunk fits comfortably inside a
+2 h walltime. **Prefer many short chunks**: jobs land in the `p3` queue,
+where a 6 h request gets `scheduled_start = no prediction` and can sit
+waiting indefinitely while 2 h ones start.
+
+Unison does not carry the executable bit, so invoke the script as
+`bash <path>` rather than relying on `./`.
+
+Watch them with `oarstat -u emeunier` and `~/oar_logs/matrix_${TS}_c*.out`;
+`g5k sync model` pulls the results back.
+
+## Getting an interactive node instead
+
+For one-off runs and debugging:
+
+```
+g5k sync code
+ssh agrenoble
+oarsub -I -l walltime=2:00:00 --type allow_classic_ssh   # CPU job, no /gpu=
+```
 
 Once connected to the allocated node:
 

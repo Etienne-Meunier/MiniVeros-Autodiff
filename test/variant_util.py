@@ -71,9 +71,16 @@ def _scan_run(model, step0, forcing_fn, prog_fields, n_steps, log_every):
     lax.cond("already stopped", ...) + eqx.error_if that basic.py's own
     __main__ relies on): the matrix intentionally includes variants that
     may diverge, and a hard error would abort generate_matrix_data.py's
-    whole run instead of just recording that variant's (NaN) trajectory --
-    real veros's side never checks either, so this keeps both sides
-    directly comparable.
+    whole run instead of just recording that variant's (NaN) trajectory.
+
+    Note the two sides are NOT symmetric about this. Real veros does check --
+    VerosSetup.step runs numerics.sanity_check every step and raises
+    "solution diverged at iteration N" (veros/veros.py:312) -- so on an
+    unstable variant mini_veros returns a NaN trajectory while veros raises
+    partway through, and generate_matrix_data.py's except clause drops the
+    whole variant. Measured on acc_minimal: veros raises at step 8293,
+    mini_veros first goes non-finite between steps 8325 and 8350, i.e. the
+    two agree the configuration blows up; only the reporting differs.
     """
     from jax import lax
 
@@ -159,11 +166,20 @@ def build_mini_variant(name, family, overrides, n_steps, veros_path, record_inte
     return model, state_initial, state_final, sec_per_step, timesteps, recorded_states
 
 
-def build_real_variant(name, family, overrides, n_steps, veros_path, record_interval=None):
+def build_real_variant(name, family, overrides, n_steps, veros_path, record_interval=None,
+                       stop_on_divergence=False):
     """
     Build real veros for `family`, apply `overrides` via VerosSetup's
     `override=` dict, and run n_steps. Same return contract as
     build_mini_variant, minus the `model` (returns `sim` instead).
+
+    stop_on_divergence: real veros checks itself every step
+    (numerics.sanity_check in VerosSetup.step) and raises
+    "solution diverged at iteration N" on an unstable configuration. The
+    default propagates that. With stop_on_divergence=True the run is
+    truncated at that step instead and the recorded prefix is returned, so
+    the caller keeps the part of the trajectory that was still valid --
+    `sim.diverged_at` is then the failing step (None if the run completed).
     """
     sys.path.insert(0, str(veros_path))
 
@@ -198,15 +214,27 @@ def build_real_variant(name, family, overrides, n_steps, veros_path, record_inte
         recorded_states.append(state_initial.copy())
 
     sec_per_step = None
+    diverged_at = None
+    steps_run = 0
     t0 = time.perf_counter()
     for i in range(n_steps):
-        sim.step(sim.state)
+        try:
+            sim.step(sim.state)
+        except RuntimeError as exc:
+            if not (stop_on_divergence and "diverged" in str(exc)):
+                raise
+            diverged_at = i + 1
+            break
+        steps_run = i + 1
         if record_interval is not None and (i + 1) % record_interval == 0:
             timesteps.append(i + 1)
             recorded_states.append(field_now())
 
     state_final = field_now()  # forces sync before the clock stops
-    if n_steps > 0:
-        sec_per_step = (time.perf_counter() - t0) / n_steps
+    if steps_run > 0:
+        sec_per_step = (time.perf_counter() - t0) / steps_run
+
+    sim.diverged_at = diverged_at
+    sim.steps_run = steps_run
 
     return sim, state_initial, state_final, sec_per_step, timesteps, recorded_states

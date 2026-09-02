@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 """
 Runs every variant in setups_matrix.py (mini_veros vs veros), recording:
-  - error evolution over the run (all prognostic fields)
-  - field snapshots at every recorded step, for the report's gifs
+  - error evolution over the run (all prognostic fields), under the metrics
+    in test/metrics.py: scale-normalized max, relative L2, pattern
+    correlation, agreement horizon, and the climatology comparison
+  - the legacy util.compute_error_evolution metrics, so older readers of
+    these .npz files keep working
+  - field snapshots at every recorded step, for the report's gifs -- temp and
+    psi only, unless --store-all-fields
   - average wall time per step, for both implementations
+  - a status: "ok", "diverged" (one side blew up mid-run -- the valid prefix
+    is kept and compared), or "error" (the variant could not be run at all)
+
+Every variant always leaves an .npz behind, including a failing one. It used
+to leave nothing, and plot_matrix_report.py's "latest" resolution then fell
+back to that variant's newest older file -- a 4-step smoke run, which passed
+the tolerance gate only because 4 steps is not enough time to diverge.
 
 Saves one .npz per variant into $STORE/MiniVeros-Autodiff/results/, named
 "{variant}__{timestamp}.npz" -- every variant run in one invocation shares
@@ -22,6 +34,7 @@ Usage:
     python test/generate_matrix_data.py --variant acc_basic
     python test/generate_matrix_data.py --group acc         # acc family only
     python test/generate_matrix_data.py --steps 4 --record-interval 2 --variant acc_basic   # fast smoke test
+    python test/generate_matrix_data.py --store-all-fields   # self-contained .npz, ~3.5x the size
 """
 
 import argparse
@@ -29,6 +42,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +51,7 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "test"))
 
+import metrics
 from setups_matrix import FAMILIES, VARIANTS, VARIANTS_BY_NAME
 from util import compute_error_evolution, configure_veros_runtime
 from variant_util import build_mini_variant, build_real_variant
@@ -60,10 +75,53 @@ RUN_CONFIG = {
 # Fields snapshotted at every recorded step for the report's gifs. "temp"
 # (uppermost level) shows surface heat transport; "psi" (already 2D, the
 # barotropic streamfunction) shows the large-scale circulation.
+#
+# These two are also the only fields whose raw values survive the run: every
+# metric is reduced in-process and only the reduction is written, so a new or
+# corrected metric can be recomputed offline for temp/psi but needs a full
+# rerun for u/v/salt/tke/eke. --store-all-fields keeps every prognostic
+# field's frames instead, which makes the .npz self-contained at roughly 3.5x
+# the size (~30 MB -> ~105 MB per acc variant).
 SNAPSHOT_FIELDS = ("temp", "psi")
 
 
-def run_variant(variant, veros_path, run_timestamp):
+def _ms(sec_per_step):
+    return "n/a" if sec_per_step is None else f"{sec_per_step * 1000:.2f} ms/step"
+
+
+def write_failure_record(variant, run_timestamp, exc):
+    """
+    Write a variant's .npz with status="error" and nothing else.
+
+    The point is that the row exists: plot_matrix_report.py renders it as a
+    failure with the message, instead of quietly picking up an older,
+    shorter run of the same variant and reporting that as a pass.
+    """
+    name, family = variant["name"], variant["family"]
+    group = FAMILIES[family]["group"]
+    cfg = variant.get("run_config", RUN_CONFIG[group])
+    out = dict(
+        timesteps=np.asarray([], dtype=int),
+        mini_sec_per_step=np.asarray(np.nan),
+        real_sec_per_step=np.asarray(np.nan),
+        family=np.asarray(family),
+        group=np.asarray(group),
+        overrides_json=np.asarray(json.dumps(variant["overrides"])),
+        generated_at=np.asarray(run_timestamp),
+        run_config_json=np.asarray(json.dumps(dict(n_steps=cfg["n_steps"], record_interval=cfg["record_interval"]))),
+        status=np.asarray("error"),
+        error_message=np.asarray(f"{type(exc).__name__}: {exc}"),
+        real_diverged_at=np.asarray(-1),
+        mini_nonfinite_at=np.asarray(-1),
+        steps_completed=np.asarray(0),
+    )
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = RESULTS_DIR / f"{name}__{run_timestamp}.npz"
+    np.savez(out_path, **out)
+    print(f"    recorded failure in {out_path}")
+
+
+def run_variant(variant, veros_path, run_timestamp, store_all_fields=False):
     name, family, overrides = variant["name"], variant["family"], variant["overrides"]
     group = FAMILIES[family]["group"]
     cfg = variant.get("run_config", RUN_CONFIG[group])
@@ -76,41 +134,95 @@ def run_variant(variant, veros_path, run_timestamp):
         name, family, overrides, n_steps, veros_path, record_interval
     )
     t1 = time.time()
-    _, real_s0, real_sf, real_sec, real_ts, real_states = build_real_variant(
-        name, family, overrides, n_steps, veros_path, record_interval
+    # truncate rather than raise: an unstable variant is a result, not a
+    # missing row. Real veros checks itself every step (numerics.sanity_check
+    # in VerosSetup.step) and raises "solution diverged at iteration N"; that
+    # used to abort the variant and leave the report silently falling back to
+    # an older, much shorter snapshot of it.
+    sim, real_s0, real_sf, real_sec, real_ts, real_states = build_real_variant(
+        name, family, overrides, n_steps, veros_path, record_interval, stop_on_divergence=True
     )
     t2 = time.time()
-    print(f"    mini: {t1 - t0:.1f}s ({mini_sec * 1000:.2f} ms/step)   "
-          f"real: {t2 - t1:.1f}s ({real_sec * 1000:.2f} ms/step)")
+    print(f"    mini: {t1 - t0:.1f}s ({_ms(mini_sec)})   real: {t2 - t1:.1f}s ({_ms(real_sec)})")
 
-    assert mini_ts == real_ts, f"{name}: mini/real recorded different timesteps: {mini_ts} vs {real_ts}"
+    real_diverged_at = getattr(sim, "diverged_at", None)
+    mini_nonfinite = metrics.first_nonfinite(mini_ts, mini_states)
 
-    errors = compute_error_evolution(mini_ts, mini_states, real_states)
+    if real_diverged_at is not None:
+        print(f"    veros diverged at step {real_diverged_at}; keeping the {len(real_states)} valid records")
+    if mini_nonfinite is not None:
+        print(f"    mini_veros first non-finite at recorded step {mini_nonfinite[0]} ({mini_nonfinite[1]}); "
+              f"comparison stops before it")
+
+    # both sides record on the same schedule, so a truncated real run is a
+    # prefix of the mini one -- compare over the common part
+    n_common = min(len(mini_ts), len(real_ts))
+    assert mini_ts[:n_common] == real_ts[:n_common], (
+        f"{name}: mini/real recorded different timesteps: {mini_ts[:n_common]} vs {real_ts[:n_common]}"
+    )
+
+    # ...and stop before mini's first all-NaN record. Differencing NaN against
+    # a number is not a comparison, and util.compare_field's np.nanargmax
+    # raises "All-NaN slice encountered" on such a record rather than
+    # returning anything usable.
+    if mini_nonfinite is not None and mini_nonfinite[0] in mini_ts[:n_common]:
+        n_common = min(n_common, mini_ts.index(mini_nonfinite[0]))
+        n_common = max(n_common, 1)  # always keep step 0, which is exact by construction
+
+    timesteps = mini_ts[:n_common]
+    mini_states, real_states = mini_states[:n_common], real_states[:n_common]
+
+    status = "ok"
+    if real_diverged_at is not None or mini_nonfinite is not None:
+        status = "diverged"
 
     out = dict(
-        timesteps=np.asarray(mini_ts),
-        mini_sec_per_step=np.asarray(mini_sec),
-        real_sec_per_step=np.asarray(real_sec),
+        timesteps=np.asarray(timesteps),
+        mini_sec_per_step=np.asarray(mini_sec if mini_sec is not None else np.nan),
+        real_sec_per_step=np.asarray(real_sec if real_sec is not None else np.nan),
         family=np.asarray(family),
         group=np.asarray(group),
         overrides_json=np.asarray(json.dumps(overrides)),
         generated_at=np.asarray(run_timestamp),
         run_config_json=np.asarray(json.dumps(dict(n_steps=n_steps, record_interval=record_interval))),
+        status=np.asarray(status),
+        error_message=np.asarray(""),
+        real_diverged_at=np.asarray(-1 if real_diverged_at is None else real_diverged_at),
+        mini_nonfinite_at=np.asarray(-1 if mini_nonfinite is None else mini_nonfinite[0]),
+        steps_completed=np.asarray(timesteps[-1] if timesteps else 0),
     )
+
+    # legacy metrics, kept so older readers of these .npz files keep working
+    errors = compute_error_evolution(timesteps, mini_states, real_states)
     for field, data in errors.items():
         for key in ("max_abs_errors", "max_rel_errors", "mean_abs_errors", "median_abs_errors"):
             out[f"err_{field}_{key}"] = np.asarray(data[key])
-        # per-step pass/fail from compare_field's np.allclose(atol, rtol) -- the
-        # same criterion test_matrix.py gates on, unlike a bare max_rel
-        # threshold (which false-flags u/v: their relative error blows up on
-        # near-zero values even when the absolute difference is solver noise).
         out[f"err_{field}_passes"] = np.asarray(data["passes"])
 
-    for field in SNAPSHOT_FIELDS:
-        if field not in mini_states[0]:
-            continue
+    # the metrics the report actually reads (see test/metrics.py for why
+    # max_rel is not among them)
+    evolution = metrics.evolution(timesteps, mini_states, real_states)
+    for field, per_metric in evolution.items():
+        for metric_name, values in per_metric.items():
+            out[f"m_{field}_{metric_name}"] = values
+        step, exceeded = metrics.agreement_horizon(timesteps, per_metric["max_norm"])
+        out[f"m_{field}_agreement_horizon"] = np.asarray(step)
+        out[f"m_{field}_agreement_exceeded"] = np.asarray(exceeded)
+
+        clim = metrics.climatology(
+            [s[field] for s in mini_states], [s[field] for s in real_states]
+        )
+        if clim is not None:
+            for key, value in clim.items():
+                out[f"c_{field}_{key}"] = np.asarray(value)
+
+    available = sorted(mini_states[0]) if mini_states else []
+    wanted = available if store_all_fields else [f for f in SNAPSHOT_FIELDS if f in available]
+    for field in wanted:
         out[f"{field}_mini_frames"] = np.stack([s[field] for s in mini_states])
         out[f"{field}_real_frames"] = np.stack([s[field] for s in real_states])
+    # so a reader can tell whether a metric is recomputable from this file
+    out["stored_fields"] = np.asarray(wanted)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"{name}__{run_timestamp}.npz"
@@ -121,10 +233,21 @@ def run_variant(variant, veros_path, run_timestamp):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--variant", choices=sorted(VARIANTS_BY_NAME), default=None, help="run a single variant")
+    parser.add_argument("--variants", nargs="+", choices=sorted(VARIANTS_BY_NAME), default=None,
+                        help="run this explicit list of variants (for splitting one sweep across jobs)")
     parser.add_argument("--group", choices=("acc", "global"), default=None, help="run only this group's variants")
     parser.add_argument("--veros-path", type=Path, default=DEFAULT_VEROS_PATH)
     parser.add_argument("--steps", type=int, default=None, help="override n_steps for every selected variant")
     parser.add_argument("--record-interval", type=int, default=None, help="override record_interval")
+    parser.add_argument("--store-all-fields", action="store_true",
+                        help="store every prognostic field's frames, not just temp/psi. Metrics are "
+                             "reduced in-process, so by default a new or corrected metric can only be "
+                             "recomputed offline for temp/psi and needs a full rerun for the rest; this "
+                             "makes the .npz self-contained, at roughly 3.5x the size.")
+    parser.add_argument("--run-timestamp", default=None,
+                        help="stamp results with this instead of the current time. Pass the same value to "
+                             "every job of a split sweep so the whole matrix lands on one snapshot -- "
+                             "plot_matrix_report.py --strict then has a single timestamp to render.")
     args = parser.parse_args()
 
     if not (args.veros_path / "veros" / "__init__.py").exists():
@@ -134,6 +257,8 @@ def main():
 
     if args.variant:
         selected = [VARIANTS_BY_NAME[args.variant]]
+    elif args.variants:
+        selected = [VARIANTS_BY_NAME[v] for v in args.variants]
     elif args.group:
         selected = [v for v in VARIANTS if FAMILIES[v["family"]]["group"] == args.group]
     else:
@@ -141,7 +266,8 @@ def main():
 
     # one timestamp for the whole invocation, so a full run's variants share
     # a snapshot; a partial rerun (--variant/--group) gets its own, newer one
-    run_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # unless --run-timestamp pins it (split sweeps, see the flag's help)
+    run_timestamp = args.run_timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     for variant in selected:
         if args.steps or args.record_interval:
@@ -153,13 +279,17 @@ def main():
                 base["record_interval"] = args.record_interval
             variant = dict(variant, run_config=base)
         try:
-            run_variant(variant, args.veros_path, run_timestamp)
+            run_variant(variant, args.veros_path, run_timestamp, args.store_all_fields)
         except Exception as e:
-            # some variants (e.g. acc_minimal, which strips friction/mixing terms)
-            # are physically unstable and expected to diverge -- real veros's own
-            # divergence check raises RuntimeError mid-run; don't let one variant's
-            # failure abort the rest of the matrix.
-            print(f"    FAILED: {variant['name']}: {e}")
+            # Don't let one variant's failure abort the rest of the matrix --
+            # but do leave a file behind saying so. Printing only (the old
+            # behaviour) wrote no .npz, and plot_matrix_report.py's "latest"
+            # resolution then silently fell back to that variant's newest
+            # older snapshot: a 4-step smoke run, which passed the tolerance
+            # gate purely because 4 steps is not enough time to diverge.
+            print(f"    FAILED: {variant['name']}: {type(e).__name__}: {e}")
+            traceback.print_exc()
+            write_failure_record(variant, run_timestamp, e)
 
 
 if __name__ == "__main__":
