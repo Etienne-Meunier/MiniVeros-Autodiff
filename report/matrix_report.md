@@ -26,16 +26,20 @@ $$
 
 
 **Relative $L_2$ error.** The whole-field distance :
+
 $$
 \mathrm{rel\_L2} \;=\; \frac{\| m - v \|_2}{\| v \|_2}
 $$
 
 
 **Pattern correlation.** The Pearson correlation of the two fields' anomalies : 1 if same structure even shift by an offset :
+
 $$
 \mathrm{corr} \;=\; \frac{\sum_i (m_i - \overline{m})(v_i - \overline{v})}{\| m - \overline{m} \|_2 \; \| v - \overline{v} \|_2}
 $$
+
 **Agreement horizon.** The first recorded step at which any field's $\mathrm{max\_norm}$ crosses $\varepsilon = 10^{-6}$. 
+
 $$
 T_{\mathrm{agree}} \;=\; \min\left\{\, t \;:\; \mathrm{max\_norm}(t) > \varepsilon \,\right\}
 $$
