@@ -41,7 +41,7 @@ $$
 **Agreement horizon.** The first recorded step at which any field's $\mathrm{max\_norm}$ crosses $\varepsilon = 10^{-6}$. 
 
 $$
-T_{\mathrm{agree}} = \min\left\{\, t \;:\; \mathrm{max\_norm}(t) > \varepsilon \,\right\}
+T_{\mathrm{agree}} = \min \{ \, t \;:\; \mathrm{max\_norm}(t) > \varepsilon \, \}
 $$
 
 
