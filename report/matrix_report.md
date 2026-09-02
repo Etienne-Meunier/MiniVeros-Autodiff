@@ -20,19 +20,19 @@ For one field at one recorded step, let $m$ and $v$ be the mini_veros and veros 
 
 **Scale-normalized max error.** The largest point-wise disagreement, divided by the reference field's own magnitude :
 $$
-\mathrm{max\_norm} \;=\; \frac{\max_i \left| m_i - v_i \right|}{\operatorname{rms}(v)}, \qquad \operatorname{rms}(x) = \sqrt{\frac{1}{N}\sum_{i=1}^{N} x_i^2}
+\mathrm{max\_norm} \;=\; \frac{\max_i \left| m_i - v_i \right|}{\mathrm{rms}(v)}, \qquad \mathrm{rms}(x) = \sqrt{\frac{1}{N}\sum_{i=1}^{N} x_i^2}
 $$
 
 
 **Relative $L_2$ error.** The whole-field distance :
 $$
-\mathrm{rel\_L2} \;=\; \frac{\lVert m - v \rVert_2}{\lVert v \rVert_2}
+\mathrm{rel\_L2} \;=\; \frac{\| m - v \|_2}{\| v \|_2}
 $$
 
 
 **Pattern correlation.** The Pearson correlation of the two fields' anomalies : 1 if same structure even shift by an offset :
 $$
-\mathrm{corr} \;=\; \frac{\sum_i (m_i - \overline{m})(v_i - \overline{v})}{\lVert m - \overline{m} \rVert_2 \; \lVert v - \overline{v} \rVert_2}
+\mathrm{corr} \;=\; \frac{\sum_i (m_i - \overline{m})(v_i - \overline{v})}{\| m - \overline{m} \|_2 \; \| v - \overline{v} \|_2}
 $$
 **Agreement horizon.** The first recorded step at which any field's $\mathrm{max\_norm}$ crosses $\varepsilon = 10^{-6}$. 
 $$
@@ -48,9 +48,9 @@ $\langle x \rangle_{A}$  : time mean over a window $A$ of records,
 
  We split a run of $R$ records into its second half $H$ and its third and fourth quarters $Q_3, Q_4$.
 
-$$D \;=\; \langle m \rangle_{H} - \langle v \rangle_{H}, \qquad S \;=\; \langle v \rangle_{Q_3} - \langle v \rangle_{Q_4}, \qquad \mathrm{clim\ ratio} \;=\; \frac{\operatorname{rms}(D)}{\operatorname{rms}(S)}$$
+$$D \;=\; \langle m \rangle_{H} - \langle v \rangle_{H}, \qquad S \;=\; \langle v \rangle_{Q_3} - \langle v \rangle_{Q_4}, \qquad \mathrm{clim\ ratio} \;=\; \frac{\mathrm{rms}(D)}{\mathrm{rms}(S)}$$
 
-.The ratio is only reported where veros actually varies, $\operatorname{rms}(S) > 10^{-8} \cdot \operatorname{rms}(v)$.
+.The ratio is only reported where veros actually varies, $\mathrm{rms}(S) > 10^{-8} \cdot \mathrm{rms}(v)$.
 
 ![timing](matrix_figures/timing_summary.png)
 
