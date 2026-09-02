@@ -19,6 +19,7 @@ A 30-year run cannot agree point-wise -- roundoff-level differences grow to the 
 For one field at one recorded step, let $m$ and $v$ be the mini_veros and veros fields flattened over the grid, $N$ their length, and $\overline{x}$ a spatial mean. Cells where either side is not finite are dropped before any of this.
 
 **Scale-normalized max error.** The largest point-wise disagreement, divided by the reference field's own magnitude :
+
 $$
 \mathrm{max\_norm} \;=\; \frac{\max_i \left| m_i - v_i \right|}{\mathrm{rms}(v)}, \qquad \mathrm{rms}(x) = \sqrt{\frac{1}{N}\sum_{i=1}^{N} x_i^2}
 $$
