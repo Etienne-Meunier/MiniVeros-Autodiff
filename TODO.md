@@ -63,6 +63,38 @@ gated by `test/test_divergence.py`).
       Real veros run against itself from a 1e-15 relative temperature kick
       reproduces the same ~3e-7 tke jump at the same step.
 
+- [x] **Run the matrix at a tight elliptic-solver tolerance.** Both codes ship
+      `bicgstab(..., tol=0, atol=1e-8)`, an absolute residual bound that let
+      the two solvers stop ~1e-9 apart in relative psi — seven orders above
+      float64 roundoff, and the largest avoidable seed of their divergence.
+      `--solver-atol` now forces both sides, defaulting to 1e-14; measured
+      overhead 1-3%. Sweep `20260902T220817Z` vs the shipped-tolerance
+      `20260902T072723Z`:
+
+      * **19 of 31 agreement horizons grew**, none shrank. Biggest gains
+        `acc_surface_pressure` 150 → 1950 and `acc_minimal` 1950 → 7500.
+      * **Climatology ratios barely moved**, as expected — the tolerance
+        controls the seed, not the saturation level.
+      * The 12 unchanged rows are not a failure of the method, they are
+        two other seeds taking over:
+        - every `global_*` row sits at 150, the first recorded step. At
+          1e-14 its step-0 seed drops from 7.3e-08 (psi, the solver) to
+          6.9e-11 (u) — the setup-level numpy-vs-jax evaluation-order
+          difference in `report/error_math.md`, which no solver setting
+          touches. Both are past the 1e-6 gate by step 150, so a
+          `record_interval` of 150 cannot resolve the improvement.
+        - `acc_maximal` and `acc_tke_superbee_advection` both enable
+          `enable_tke_superbee_advection`, whose limiter is discontinuous;
+          a roundoff-level input difference produces a finite flux
+          difference regardless of tolerance.
+
+      Worth watching: `acc_no_hor_friction`'s climatology ratio moved 0.27 →
+      0.95 (still below 1). It is the most energetic configuration and the
+      most decorrelated row in the table (corr 0.72, rel L2 0.77), so a
+      swing of that size between two chaotic realizations is expected rather
+      than a regression — but it is the one row where the 30-year means come
+      close to veros's own sampling spread.
+
 ## Still open
 
 - [x] **`matrix_report.md` mixes snapshots** and its "worst error" column is

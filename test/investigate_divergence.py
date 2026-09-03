@@ -55,7 +55,6 @@ Then: python test/plot_divergence_report.py
 """
 
 import argparse
-import contextlib
 import os
 import sys
 from pathlib import Path
@@ -72,41 +71,11 @@ DEFAULT_VEROS_PATH = REPO_ROOT / "veros"
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
 OUT_DIR = STORE / "MiniVeros-Autodiff" / "results" / "divergence"
 
-# The elliptic solver's default stopping rule, shared by both codes:
-# veros/core/external/solvers/scipy_jax.py and mini_veros's copy of it both
-# call bicgstab(..., tol=0, atol=1e-8), i.e. an *absolute* residual bound.
-DEFAULT_SOLVER_ATOL = 1e-8
-TIGHT_SOLVER_ATOL = 1e-14
-
-
-@contextlib.contextmanager
-def forced_solver_atol(atol):
-    """
-    Force both implementations' bicgstab to `atol` for the duration.
-
-    Both import the same jax.scipy.sparse.linalg.bicgstab: veros inside
-    JAXSciPySolver.__init__ (so patching the module is enough), mini_veros
-    at module scope in its solvers.scipy_jax (so that module's own attribute
-    has to be patched too).
-    """
-    import jax.scipy.sparse.linalg as jssl
-
-    from mini_veros.core.external.solvers import scipy_jax as mini_solver
-
-    original = jssl.bicgstab
-
-    def patched(A, b, x0=None, *, tol=0.0, atol=0.0, maxiter=None, M=None):
-        return original(A, b, x0=x0, tol=0.0, atol=atol_forced, maxiter=maxiter, M=M)
-
-    atol_forced = atol
-    jssl.bicgstab = patched
-    mini_solver_original = mini_solver.bicgstab
-    mini_solver.bicgstab = patched
-    try:
-        yield
-    finally:
-        jssl.bicgstab = original
-        mini_solver.bicgstab = mini_solver_original
+# forced_solver_atol and the two tolerance constants live in variant_util
+# (alongside the build functions they wrap) so that generate_matrix_data.py can
+# use them without importing this investigation script. Re-exported here
+# because several test/ modules already import them from this module.
+from variant_util import DEFAULT_SOLVER_ATOL, TIGHT_SOLVER_ATOL, forced_solver_atol  # noqa: F401
 
 
 def _scale(arr):

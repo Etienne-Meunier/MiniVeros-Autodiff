@@ -91,7 +91,14 @@ def plot_growth(variant, timestamp=None):
         d = np.load(matrix_path, allow_pickle=True)
         key = f"err_{GROWTH_FIELD}_max_abs_errors"
         if key in d.files:
-            curves.append(("mini vs veros (solver atol 1e-8, as shipped)", d["timesteps"], d[key], "tab:red", "-"))
+            # label from what the run actually used: the matrix default is now
+            # a tightened solver, and files predating --solver-atol are 1e-8
+            atol = float(d["solver_atol"]) if "solver_atol" in d.files else 1e-8
+            shipped = ", as shipped" if atol == 1e-8 else ""
+            curves.append(
+                (f"mini vs veros (matrix run, solver atol {atol:g}{shipped})",
+                 d["timesteps"], d[key], "tab:red", "-")
+            )
 
     long_colors = ["tab:orange", "tab:brown", "tab:pink"]
     for i, path in enumerate(sorted(DIV_DIR.glob(f"long_{variant}_atol*.npz"))):

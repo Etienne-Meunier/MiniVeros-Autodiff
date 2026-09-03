@@ -32,13 +32,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "test"))
 
-from investigate_divergence import (
-    DEFAULT_SOLVER_ATOL,
-    TIGHT_SOLVER_ATOL,
-    _normalized_diffs,
-    forced_solver_atol,
-)
+from investigate_divergence import _normalized_diffs
 from setups_matrix import FAMILIES, VARIANTS, VARIANTS_BY_NAME
+from variant_util import DEFAULT_SOLVER_ATOL, TIGHT_SOLVER_ATOL, forced_solver_atol
 from util import configure_veros_runtime
 
 VEROS_PATH = REPO_ROOT / "veros"

@@ -14,6 +14,7 @@ setup-name -> real-class map (3 setups) and several other test/ scripts
 still import that exact signature.
 """
 
+import contextlib
 import dataclasses
 import importlib
 import sys
@@ -28,6 +29,61 @@ sys.path.insert(0, str(REPO_ROOT / "test"))
 from setups_matrix import FAMILIES
 
 PROGNOSTIC_FIELDS = ["u", "v", "temp", "salt", "psi"]
+
+# The elliptic solver's stopping rule, shared by both codes:
+# veros/core/external/solvers/scipy_jax.py and mini_veros's copy of it both
+# call bicgstab(..., tol=0, atol=1e-8) -- an *absolute* residual bound, which
+# leaves the two solvers free to stop about 1e-9 apart in relative psi, seven
+# orders above float64 roundoff. TIGHT is what forced_solver_atol is normally
+# used with; measured overhead is 1-3% on both sides.
+DEFAULT_SOLVER_ATOL = 1e-8
+TIGHT_SOLVER_ATOL = 1e-14
+
+
+@contextlib.contextmanager
+def forced_solver_atol(atol):
+    """
+    Force both implementations' bicgstab to `atol` for the duration.
+
+    Works by rebinding the name rather than editing veros: the wrapper takes
+    the caller's hardcoded `atol=1e-8` and discards it. That makes ordering
+    load-bearing, and differently so on each side --
+
+      veros  imports bicgstab inside JAXSciPySolver.__init__ and captures it
+             in the linear_solve closure, so the patch has to be live during
+             sim.setup(). Enter after that and the run silently keeps 1e-8;
+             restoring on exit does not un-patch an already-built solver.
+
+      mini   imports it at module scope, so patching jax's module alone would
+             miss the copy already in mini's globals -- hence the second
+             assignment. Its lookup happens at *trace* time inside the jitted
+             scan, so the patch must be live while the run compiles.
+
+    In both cases: wrap the whole build call, not just the stepping.
+    """
+    import jax.scipy.sparse.linalg as jssl
+
+    # callers may enter this before anything has put mini_veros on the path
+    mini_path = str(REPO_ROOT / "mini-veros")
+    if mini_path not in sys.path:
+        sys.path.insert(0, mini_path)
+
+    from mini_veros.core.external.solvers import scipy_jax as mini_solver
+
+    original = jssl.bicgstab
+
+    def patched(A, b, x0=None, *, tol=0.0, atol=0.0, maxiter=None, M=None):
+        return original(A, b, x0=x0, tol=0.0, atol=atol_forced, maxiter=maxiter, M=M)
+
+    atol_forced = atol
+    jssl.bicgstab = patched
+    mini_solver_original = mini_solver.bicgstab
+    mini_solver.bicgstab = patched
+    try:
+        yield
+    finally:
+        jssl.bicgstab = original
+        mini_solver.bicgstab = mini_solver_original
 
 
 def _route_overrides(model, overrides):

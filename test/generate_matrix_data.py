@@ -9,6 +9,8 @@ Runs every variant in setups_matrix.py (mini_veros vs veros), recording:
   - field snapshots at every recorded step, for the report's gifs -- temp and
     psi only, unless --store-all-fields
   - average wall time per step, for both implementations
+  - solver_atol: the elliptic-solver stopping rule both codes were forced to
+    (default 1e-14, tighter than the 1e-8 both ship with -- see --solver-atol)
   - a status: "ok", "diverged" (one side blew up mid-run -- the valid prefix
     is kept and compared), or "error" (the variant could not be run at all)
 
@@ -35,6 +37,7 @@ Usage:
     python test/generate_matrix_data.py --group acc         # acc family only
     python test/generate_matrix_data.py --steps 4 --record-interval 2 --variant acc_basic   # fast smoke test
     python test/generate_matrix_data.py --store-all-fields   # self-contained .npz, ~3.5x the size
+    python test/generate_matrix_data.py --solver-atol 1e-8   # the tolerance both codes ship with
 """
 
 import argparse
@@ -54,7 +57,7 @@ sys.path.insert(0, str(REPO_ROOT / "test"))
 import metrics
 from setups_matrix import FAMILIES, VARIANTS, VARIANTS_BY_NAME
 from util import compute_error_evolution, configure_veros_runtime
-from variant_util import build_mini_variant, build_real_variant
+from variant_util import TIGHT_SOLVER_ATOL, build_mini_variant, build_real_variant, forced_solver_atol
 
 DEFAULT_VEROS_PATH = REPO_ROOT / "veros"
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
@@ -89,7 +92,7 @@ def _ms(sec_per_step):
     return "n/a" if sec_per_step is None else f"{sec_per_step * 1000:.2f} ms/step"
 
 
-def write_failure_record(variant, run_timestamp, exc):
+def write_failure_record(variant, run_timestamp, exc, solver_atol=TIGHT_SOLVER_ATOL):
     """
     Write a variant's .npz with status="error" and nothing else.
 
@@ -114,6 +117,7 @@ def write_failure_record(variant, run_timestamp, exc):
         real_diverged_at=np.asarray(-1),
         mini_nonfinite_at=np.asarray(-1),
         steps_completed=np.asarray(0),
+        solver_atol=np.asarray(solver_atol),
     )
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"{name}__{run_timestamp}.npz"
@@ -121,28 +125,33 @@ def write_failure_record(variant, run_timestamp, exc):
     print(f"    recorded failure in {out_path}")
 
 
-def run_variant(variant, veros_path, run_timestamp, store_all_fields=False):
+def run_variant(variant, veros_path, run_timestamp, store_all_fields=False, solver_atol=TIGHT_SOLVER_ATOL):
     name, family, overrides = variant["name"], variant["family"], variant["overrides"]
     group = FAMILIES[family]["group"]
     cfg = variant.get("run_config", RUN_CONFIG[group])
     n_steps, record_interval = cfg["n_steps"], cfg["record_interval"]
 
-    print(f"--- {name} ({group}): {n_steps} steps, recording every {record_interval} ---")
+    print(f"--- {name} ({group}): {n_steps} steps, recording every {record_interval}, "
+          f"solver atol {solver_atol:g} ---")
 
-    t0 = time.time()
-    _, mini_s0, mini_sf, mini_sec, mini_ts, mini_states = build_mini_variant(
-        name, family, overrides, n_steps, veros_path, record_interval
-    )
-    t1 = time.time()
-    # truncate rather than raise: an unstable variant is a result, not a
-    # missing row. Real veros checks itself every step (numerics.sanity_check
-    # in VerosSetup.step) and raises "solution diverged at iteration N"; that
-    # used to abort the variant and leave the report silently falling back to
-    # an older, much shorter snapshot of it.
-    sim, real_s0, real_sf, real_sec, real_ts, real_states = build_real_variant(
-        name, family, overrides, n_steps, veros_path, record_interval, stop_on_divergence=True
-    )
-    t2 = time.time()
+    # The patch has to span each build call in full, not just the stepping:
+    # veros captures bicgstab in a closure during sim.setup(), and mini_veros
+    # resolves it at trace time inside the jitted scan. See forced_solver_atol.
+    with forced_solver_atol(solver_atol):
+        t0 = time.time()
+        _, mini_s0, mini_sf, mini_sec, mini_ts, mini_states = build_mini_variant(
+            name, family, overrides, n_steps, veros_path, record_interval
+        )
+        t1 = time.time()
+        # truncate rather than raise: an unstable variant is a result, not a
+        # missing row. Real veros checks itself every step (numerics.sanity_check
+        # in VerosSetup.step) and raises "solution diverged at iteration N"; that
+        # used to abort the variant and leave the report silently falling back to
+        # an older, much shorter snapshot of it.
+        sim, real_s0, real_sf, real_sec, real_ts, real_states = build_real_variant(
+            name, family, overrides, n_steps, veros_path, record_interval, stop_on_divergence=True
+        )
+        t2 = time.time()
     print(f"    mini: {t1 - t0:.1f}s ({_ms(mini_sec)})   real: {t2 - t1:.1f}s ({_ms(real_sec)})")
 
     real_diverged_at = getattr(sim, "diverged_at", None)
@@ -190,6 +199,7 @@ def run_variant(variant, veros_path, run_timestamp, store_all_fields=False):
         real_diverged_at=np.asarray(-1 if real_diverged_at is None else real_diverged_at),
         mini_nonfinite_at=np.asarray(-1 if mini_nonfinite is None else mini_nonfinite[0]),
         steps_completed=np.asarray(timesteps[-1] if timesteps else 0),
+        solver_atol=np.asarray(solver_atol),
     )
 
     # legacy metrics, kept so older readers of these .npz files keep working
@@ -244,6 +254,13 @@ def main():
                              "reduced in-process, so by default a new or corrected metric can only be "
                              "recomputed offline for temp/psi and needs a full rerun for the rest; this "
                              "makes the .npz self-contained, at roughly 3.5x the size.")
+    parser.add_argument("--solver-atol", type=float, default=TIGHT_SOLVER_ATOL,
+                        help="absolute residual bound forced on BOTH codes' bicgstab for the external "
+                             f"mode (default {TIGHT_SOLVER_ATOL:g}). Both ship with 1e-8, which is loose "
+                             "enough that the two solvers stop ~1e-9 apart in relative psi -- seven "
+                             "orders above float64 roundoff, and the largest avoidable seed of their "
+                             "divergence. Costs 1-3%% in wall time. Pass 1e-8 to reproduce the shipped "
+                             "configuration.")
     parser.add_argument("--run-timestamp", default=None,
                         help="stamp results with this instead of the current time. Pass the same value to "
                              "every job of a split sweep so the whole matrix lands on one snapshot -- "
@@ -279,7 +296,7 @@ def main():
                 base["record_interval"] = args.record_interval
             variant = dict(variant, run_config=base)
         try:
-            run_variant(variant, args.veros_path, run_timestamp, args.store_all_fields)
+            run_variant(variant, args.veros_path, run_timestamp, args.store_all_fields, args.solver_atol)
         except Exception as e:
             # Don't let one variant's failure abort the rest of the matrix --
             # but do leave a file behind saying so. Printing only (the old
@@ -289,7 +306,7 @@ def main():
             # gate purely because 4 steps is not enough time to diverge.
             print(f"    FAILED: {variant['name']}: {type(e).__name__}: {e}")
             traceback.print_exc()
-            write_failure_record(variant, run_timestamp, e)
+            write_failure_record(variant, run_timestamp, e, args.solver_atol)
 
 
 if __name__ == "__main__":

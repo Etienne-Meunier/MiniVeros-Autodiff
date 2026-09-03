@@ -45,6 +45,12 @@ if [ "${STORE_ALL_FIELDS:-0}" != "0" ]; then
     EXTRA+=(--store-all-fields)
     echo "storing all prognostic fields (~3.5x the .npz size)"
 fi
+# SOLVER_ATOL overrides the tightened default; pass 1e-8 to reproduce the
+# tolerance both codes ship with.
+if [ -n "${SOLVER_ATOL:-}" ]; then
+    EXTRA+=(--solver-atol "$SOLVER_ATOL")
+    echo "forcing elliptic-solver atol=$SOLVER_ATOL"
+fi
 
 # -u: OAR redirects stdout to a file, so without it Python buffers and the
 # log stays empty for the whole job -- there is no way to tell a slow chunk
