@@ -27,28 +27,42 @@ PROGNOSTIC_FIELDS = ["u", "v", "temp", "salt", "psi", "tke"]
 EKE_SETUPS = ("acc", "global_4deg")
 
 
-def configure_veros_runtime(veros_path):
+def configure_veros_runtime(veros_path, device="cpu"):
     """
     Configure real veros runtime settings before any veros.core imports.
 
     Must run exactly once, before importing veros.core or any setup that
     imports veros.tools (which transitively imports veros.core).
 
+    `device` sets both sides: veros reads rs.device, and mini_veros inherits
+    jax_platform_name, since build_mini_variant only re-asserts x64. Note
+    float64 is not negotiable here (the whole comparison rests on it) and is
+    heavily throttled on the workstation-class GPUs Grid5000 grenoble has --
+    1:64 of float32 on Ada, 1:32 on Ampere GA102. At these grid sizes
+    (23k-62k cells) both codes look dispatch-bound rather than FLOP-bound,
+    so measure before assuming either direction.
+
+    rs.linear_solver stays pinned to scipy_jax on purpose. veros's own
+    "best" picks scipy (+ILU) on CPU and JAXSciPySolver on GPU+float64, so
+    leaving it unset would silently change solvers with the device and
+    confound any comparison across the two.
+
     Args:
         veros_path: Path to the real veros repository.
+        device: "cpu" (default) or "gpu".
     """
     sys.path.insert(0, str(veros_path))
 
     from veros import runtime_settings as rs
 
     rs.backend = "jax"
-    rs.device = "cpu"
+    rs.device = device
     rs.float_type = "float64"
     rs.linear_solver = "scipy_jax"
 
     import jax
     jax.config.update("jax_enable_x64", True)
-    jax.config.update("jax_platform_name", "cpu")
+    jax.config.update("jax_platform_name", device)
 
 
 def build_mini(setup_name, n_steps, veros_path, record_interval=None):

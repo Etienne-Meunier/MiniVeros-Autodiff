@@ -45,6 +45,22 @@ FAMILIES = {
         real_class="GlobalFourDegreeSetup",
         group="global",
     ),
+    # 1-degree global (360x160x60 = 3.46M cells, ~56x global_4deg). Its own
+    # group so generate_matrix_data can give it a short horizon: at this size
+    # the matrix's 30-year run would be tens of hours per variant.
+    #
+    # This is global_flexible rather than veros's global_1deg setup, for two
+    # reasons: global_1deg's forcing file is not obtainable (ERDA's share
+    # endpoint returns nothing -- for the 4-degree file too, so the endpoint
+    # is down rather than the file being missing), while
+    # global_flexible's assets are already cached; and global_flexible reaches
+    # the same 1-degree horizontal grid with 60 levels instead of 115.
+    "global_1deg": dict(
+        mini_module="mini_veros.setups.global_flexible.default",
+        real_module="veros.setups.global_flexible.global_flexible",
+        real_class="GlobalFlexibleResolutionSetup",
+        group="global_1deg",
+    ),
 }
 
 # Coefficients used when a variant turns on a mixing/friction term whose
@@ -156,6 +172,9 @@ VARIANTS = [
             enable_tke_superbee_advection=True, enable_eke_superbee_advection=True,
         ),
     ),
+
+    # --- global_1deg: one row, this family is far more expensive ---------
+    dict(name="global_1deg", family="global_1deg", overrides={}),
 ]
 
 VARIANTS_BY_NAME = {v["name"]: v for v in VARIANTS}

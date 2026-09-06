@@ -1,3 +1,4 @@
+mamba_env: veros
 model_store_path: MiniVeros-Autodiff
 project_name: miniverosad
 unison_profile: miniverosad_cp_agrenoble

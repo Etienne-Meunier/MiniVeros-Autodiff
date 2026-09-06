@@ -8,17 +8,23 @@ Data stays in $STORE (results/*.npz can be regenerated); the report and
 its figures are committed to the repo, under report/matrix_figures/ and
 report/matrix_report.md.
 
-Each result file is named "{variant}__{timestamp}.npz" -- re-running
-generate_matrix_data.py adds a new one rather than overwriting, so
---timestamp picks which snapshot to render. Default "latest" takes the
-newest file per variant (variants can end up on different snapshots after
-a partial rerun -- the report's first line says which timestamp(s) it used).
+Results live in "results/{run_id}/{variant}.npz" -- one directory per run --
+so --run-id says which run to render. It is required, and it is matched exactly: a
+variant with no file for that id becomes an empty row and a warning in the
+banner, never a row filled in from some other run. That fallback is what once
+made three crashed variants the report's only three "passing" rows, so the
+resolution rule is gone rather than guarded -- there is no "latest".
+
+Run ids come from wherever the run was launched: a wandb sweep id for a swept
+matrix (every agent shares it without coordinating), or the "local-..." id
+generate_matrix_data.py assigns otherwise. `plot_matrix_report.py --run-id
+nosuch` lists the ids actually present.
 
 Kept separate from data generation so re-plotting doesn't require
 re-running the (slow) simulations.
 
 The report is half hand-written: only the regions fenced by
-"<!-- AUTO:key -->" markers (timestamp, timing figure, summary table,
+"<!-- AUTO:key -->" markers (run banner, timing figure, summary table,
 per-variant sections) are regenerated.
 Prose outside them -- the intro, the metric definitions, any commentary
 added by hand -- is copied through untouched, and a block whose markers
@@ -26,8 +32,8 @@ were deleted is not written back. --rewrite discards all of it and
 regenerates the report from scratch.
 
 Usage:
-    python test/plot_matrix_report.py                     # latest snapshot per variant
-    python test/plot_matrix_report.py --timestamp 20260828T143000Z
+    python test/plot_matrix_report.py --run-id be7b0pze          # a sweep
+    python test/plot_matrix_report.py --run-id local-20260828T143000Z
 """
 
 import argparse
@@ -49,7 +55,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "test"))
 
 import metrics
-from setups_matrix import VARIANTS
+from run_ids import require_run_id, result_path
+from setups_matrix import FAMILIES, VARIANTS
 from variant_util import DEFAULT_SOLVER_ATOL
 
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
@@ -131,13 +138,16 @@ def _field_frames(data, field):
     real_frames = data[key_real]
     timesteps = data["timesteps"]
 
-    # 3D field (x, y, z): uppermost level as a 2D "surface" slice
+    # 3D field (x, y, z): uppermost level as a 2D "surface" slice. A run with
+    # --snapshot-surface-only already stored just that slice, so the label has
+    # to come from the flag rather than from the array's rank.
+    surface_only = bool(data["snapshot_surface_only"]) if "snapshot_surface_only" in data.files else False
     if mini_frames.ndim == 4:
         mini_frames = mini_frames[:, :, :, -1]
         real_frames = real_frames[:, :, :, -1]
         level_note = " (uppermost level)"
     else:
-        level_note = ""
+        level_note = " (uppermost level)" if surface_only and field != "psi" else ""
 
     return mini_frames, real_frames, timesteps, level_note
 
@@ -283,23 +293,38 @@ def variant_summary(name, data):
     return summary
 
 
-def resolve_npz(name, timestamp):
-    """Path to variant `name`'s .npz for the requested snapshot.
-    "latest" picks the newest timestamped file for that variant (sorts
-    chronologically since the timestamp format is zero-padded/lexical);
-    otherwise the file must match "{name}__{timestamp}.npz" exactly."""
-    candidates = sorted(RESULTS_DIR.glob(f"{name}__*.npz"))
-    if not candidates:
-        return None
-    if timestamp == "latest":
-        return candidates[-1]
-    exact = RESULTS_DIR / f"{name}__{timestamp}.npz"
+def resolve_npz(name, run_id):
+    """Path to variant `name`'s .npz within run `run_id`, or None.
+
+    Exact match, deliberately: there is no fallback to another run. A variant
+    absent from this run renders as a missing row, which is a visible gap --
+    the older "newest file wins" rule filled that gap silently from a previous
+    run, and a short older run reads as a pass.
+    """
+    exact = result_path(RESULTS_DIR, run_id, name)
     return exact if exact.exists() else None
 
 
-def render_variant(variant, timestamp):
+def missing_row(variant):
+    """A variant with no .npz in this run. Rendered as an explicit row rather
+    than omitted: an absent row looks like a variant nobody asked for, while a
+    row saying "no result" is a question."""
+    return dict(
+        name=variant["name"],
+        family=variant["family"],
+        group=FAMILIES[variant["family"]]["group"],
+        overrides=variant["overrides"],
+        mini_ms=None, real_ms=None,
+        summary={"message": "no result in this run -- the variant never wrote an .npz"},
+        has_data=False,
+        err_png=None, gifs=[],
+        generated_at=None, run_config=None, solver_atol=None, device=None,
+    )
+
+
+def render_variant(variant, run_id):
     name = variant["name"]
-    npz_path = resolve_npz(name, timestamp)
+    npz_path = resolve_npz(name, run_id)
     if npz_path is None:
         return None
     data = np.load(npz_path)
@@ -334,6 +359,7 @@ def render_variant(variant, timestamp):
         # absent in every file written before --solver-atol existed; those were
         # all produced at the tolerance both codes ship with
         solver_atol=float(data["solver_atol"]) if "solver_atol" in data.files else None,
+        device=str(data["device"]) if "device" in data.files else None,
     )
 
 
@@ -371,6 +397,25 @@ def format_ts(ts):
         return ts
 
 
+def device_summary(rows):
+    """
+    Which jax platform produced these rows. Files predating --device were all
+    CPU. Worth stating for the same reason as the tolerance: ms/step and the
+    speedup column are hardware-specific, and float64 is throttled 1:32-1:64
+    on the workstation-class GPUs this runs on.
+    """
+    seen = {r["device"] for r in rows}
+    labelled = {(d if d is not None else "cpu") for d in seen}
+    assumed = " (assumed; not recorded in these files)" if None in seen else ""
+    if len(labelled) == 1:
+        return f"Run on {next(iter(labelled))}{assumed}."
+    return (
+        "**Warning: mixed devices** -- "
+        + ", ".join(f"`{d}`" for d in sorted(labelled))
+        + ". Timings are not comparable across them."
+    )
+
+
 def solver_atol_summary(rows):
     """
     Which elliptic-solver stopping rule produced these rows.
@@ -394,36 +439,46 @@ def solver_atol_summary(rows):
     )
 
 
-def timestamp_summary(rows, requested):
+def run_summary(rows, run_id):
     """
-    Provenance banner. When "latest" pulls variants from different runs the
-    banner leads with a warning, because that is exactly how a variant that
-    crashed in the newest sweep used to reappear as a passing 4-step row
-    from an older one. Run with --strict to refuse rather than warn.
+    Provenance banner.
+
+    Every row here comes from `run_id` by construction -- rendering resolves
+    each variant to that id exactly, with no fallback -- so there is no
+    mixed-snapshot case left to warn about. What can still happen is a variant
+    with no result in the run, which shows as a missing row, so the banner
+    counts those instead.
+
+    `generated_at` is reported per run as provenance (when the work actually
+    ran). It no longer selects anything.
     """
-    known = [r for r in rows if r["generated_at"]]
+    missing = sorted(r["name"] for r in rows if r["summary"].get("message", "").startswith("no result"))
+    # Rows with no file carry solver_atol=None and device=None, which both
+    # summaries would read as "the old default" and report as a mix. Describe
+    # only the results that exist.
+    present = [r for r in rows if r["name"] not in set(missing)]
+    known = [r for r in present if r["generated_at"]]
+    atol_note = f"{solver_atol_summary(present)} {device_summary(present)}" if present else ""
+
     if not known:
-        return f"timestamp: {requested} (no generation timestamp recorded for these results)."
+        head = f"run: `{run_id}` (no generation timestamp recorded for these results)."
+    else:
+        stamps = sorted(r["generated_at"] for r in known)
+        span = (f"`{stamps[0]}` ({format_ts(stamps[0])})" if stamps[0] == stamps[-1]
+                else f"`{stamps[0]}`..`{stamps[-1]}` ({format_ts(stamps[0])} to {format_ts(stamps[-1])})")
+        # A spread here is normal, not a warning: agents finish at different
+        # times. It is one run because it is one id.
+        head = f"run: `{run_id}`, generated {span}. {atol_note}"
 
-    atol_note = solver_atol_summary(rows)
-    timestamps = {r["generated_at"] for r in known}
-    if len(timestamps) == 1:
-        ts = next(iter(timestamps))
-        return f"timestamp: {requested} -> `{ts}` ({format_ts(ts)}). {atol_note}"
-
-    by_ts = {}
-    for r in known:
-        by_ts.setdefault(r["generated_at"], []).append(r["name"])
-    newest = max(by_ts)
-    stale = sorted(name for ts, names in by_ts.items() if ts != newest for name in names)
-    breakdown = "; ".join(f"`{ts}` ({format_ts(ts)}): {', '.join(sorted(vs))}" for ts, vs in sorted(by_ts.items()))
-    return (
-        f"> **Warning: mixed snapshots.** {len(stale)} variant(s) are not from the newest "
-        f"sweep `{newest}` and may have been run at a different horizon: "
-        f"{', '.join(f'`{n}`' for n in stale)}. Their rows are not comparable with the rest. "
-        f"Rerun them, or pass `--timestamp {newest}` to drop them.\n\n"
-        f"timestamp: {requested} -> mixed snapshots -- {breakdown} {atol_note}"
-    )
+    if missing:
+        return (
+            f"> **Warning: {len(missing)} variant(s) have no result in this run:** "
+            f"{', '.join(f'`{n}`' for n in missing)}. Their rows are empty rather than filled "
+            f"from an earlier run. Rerun them with "
+            f"`--run-id {run_id} --variant <name>` to complete the set.\n\n"
+            f"{head}"
+        )
+    return head
 
 
 def _tex_pow10(value):
@@ -514,6 +569,10 @@ def _fmt(value, spec=".2e", missing="-"):
 # A region whose markers were deleted from the .md stays deleted -- the
 # script never adds a section back to a report someone has pruned.
 
+# "timestamp" is now the run banner. The key is the literal marker text in
+# report/matrix_report.md, and a block whose markers don't match is silently
+# not regenerated -- so it keeps its old name rather than orphaning the
+# banner in every report already committed.
 AUTO_BLOCKS = ("timestamp", "timing", "table", "detail")
 
 
@@ -610,7 +669,7 @@ def _splice(text, key, build):
     return text[:match.start()] + f"{open_m}\n{body}\n{close_m}" + text[match.end():], True
 
 
-def fresh_report(rows, timing_png, requested_timestamp):
+def fresh_report(rows, timing_png, run_id):
     """The full report, markers included -- used only when there is no .md
     to update (or --rewrite says to throw the current one away)."""
 
@@ -620,7 +679,7 @@ def fresh_report(rows, timing_png, requested_timestamp):
     lines = [
         "# mini_veros vs veros: comparison matrix report",
         "",
-        *fenced("timestamp", [timestamp_summary(rows, requested_timestamp)]),
+        *fenced("timestamp", [run_summary(rows, run_id)]),
         f"{len(rows)} variants.",
         "",
         "**How to read this.** A 30-year run cannot agree point-wise -- roundoff-level "
@@ -648,7 +707,7 @@ def fresh_report(rows, timing_png, requested_timestamp):
     return lines
 
 
-def write_report(rows, timing_png, requested_timestamp, rewrite=False):
+def write_report(rows, timing_png, run_id, rewrite=False):
     rows = sorted(rows, key=lambda r: (r["group"], r["name"]))
     out = REPORT_DIR / "matrix_report.md"
     existing = out.read_text() if out.exists() else None
@@ -656,7 +715,7 @@ def write_report(rows, timing_png, requested_timestamp, rewrite=False):
     def builder(key):
         def build(inner):
             if key == "timestamp":
-                return [timestamp_summary(rows, requested_timestamp)]
+                return [run_summary(rows, run_id)]
             if key == "timing":
                 return [f"![timing]({timing_png.relative_to(REPORT_DIR)})"] if timing_png else []
             if key == "table":
@@ -669,7 +728,7 @@ def write_report(rows, timing_png, requested_timestamp, rewrite=False):
         return build
 
     if existing is None or rewrite:
-        out.write_text("\n".join(fresh_report(rows, timing_png, requested_timestamp)))
+        out.write_text("\n".join(fresh_report(rows, timing_png, run_id)))
         return out
 
     if _marker("table") not in existing:
@@ -693,23 +752,26 @@ def write_report(rows, timing_png, requested_timestamp, rewrite=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--timestamp", default="latest",
-                         help="results snapshot to render: 'latest' (default) takes the newest .npz per "
-                              "variant, or an exact run timestamp like 20260828T143000Z")
+    parser.add_argument("--run-id", required=True,
+                         help="the run to render, e.g. a wandb sweep id or a 'local-...' id from "
+                              "generate_matrix_data.py --run-id. Required and exact: the report is "
+                              "one run, never a mix of whatever files happen to be newest.")
     parser.add_argument("--rewrite", action="store_true",
                          help="regenerate report/matrix_report.md from scratch, discarding any "
                               "hand-written text in it; the default updates only the AUTO blocks")
-    parser.add_argument("--strict", action="store_true",
-                         help="refuse to render if variants resolve to different run timestamps, "
-                              "instead of warning in the report")
     args = parser.parse_args()
+
+    require_run_id(parser, RESULTS_DIR, args.run_id)
 
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     rows = []
     for variant in VARIANTS:
-        row = render_variant(variant, args.timestamp)
+        row = render_variant(variant, args.run_id)
         if row is None:
-            print(f"skip {variant['name']}: no {RESULTS_DIR / (variant['name'] + '__*.npz')} matching timestamp {args.timestamp!r}")
+            # An absent variant is part of the run's result, not an absence of
+            # one: render it as an empty row so the report shows the hole.
+            print(f"MISSING {variant['name']}: no {args.run_id}/{variant['name']}.npz")
+            rows.append(missing_row(variant))
             continue
         rows.append(row)
         summary = row["summary"]
@@ -718,17 +780,8 @@ def main():
         )
         print(f"{row['name']}: {detail}")
 
-    stamps = {r["generated_at"] for r in rows if r["generated_at"]}
-    if args.strict and len(stamps) > 1:
-        newest = max(stamps)
-        stale = sorted(r["name"] for r in rows if r["generated_at"] and r["generated_at"] != newest)
-        parser.error(
-            f"--strict: variants resolved to {len(stamps)} different snapshots; not from `{newest}`: "
-            f"{', '.join(stale)}"
-        )
-
     timing_png = plot_timing_summary(rows)
-    report = write_report(rows, timing_png, args.timestamp, rewrite=args.rewrite)
+    report = write_report(rows, timing_png, args.run_id, rewrite=args.rewrite)
     print(f"\nwrote {report}")
 
 

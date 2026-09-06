@@ -7,9 +7,14 @@ experiments) plus the matrix run's own .npz files (for the default-tolerance
 long curve and the climatology comparison), and writes
 report/divergence_figures/*.png and report/divergence_report.md.
 
+--run-id says which matrix run the long curve and the climatology table are
+read from. It is required and matched exactly: there is no "newest file wins"
+fallback, because mixing runs of different lengths in one climatology table is
+the same failure the matrix report was built to avoid.
+
 Usage:
-    python test/plot_divergence_report.py
-    python test/plot_divergence_report.py --variant acc_basic --timestamp 20260830T064015Z
+    python test/plot_divergence_report.py --run-id be7b0pze
+    python test/plot_divergence_report.py --run-id be7b0pze --variant acc_basic
 """
 
 import argparse
@@ -25,6 +30,8 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "test"))
+
+from run_ids import require_run_id, result_path, run_dir
 
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
 BASE_DIR = STORE / "MiniVeros-Autodiff"
@@ -43,12 +50,6 @@ def _positive(values):
     arr = np.asarray(values, dtype=np.float64).copy()
     arr[arr <= 0] = np.nan
     return arr
-
-
-def latest_matrix_npz(variant):
-    """Newest timestamped matrix .npz for `variant` (timestamps sort lexically)."""
-    candidates = sorted(RESULTS_DIR.glob(f"{variant}__*.npz"))
-    return candidates[-1] if candidates else None
 
 
 def plot_seed(variant):
@@ -82,12 +83,12 @@ def plot_seed(variant):
     return out.name
 
 
-def plot_growth(variant, timestamp=None):
+def plot_growth(variant, run_id):
     """Long-horizon error growth: mini-vs-veros at two solver tolerances, against veros-vs-veros twins."""
     curves = []
 
-    matrix_path = RESULTS_DIR / f"{variant}__{timestamp}.npz" if timestamp else latest_matrix_npz(variant)
-    if matrix_path and matrix_path.exists():
+    matrix_path = result_path(RESULTS_DIR, run_id, variant)
+    if matrix_path.exists():
         d = np.load(matrix_path, allow_pickle=True)
         key = f"err_{GROWTH_FIELD}_max_abs_errors"
         if key in d.files:
@@ -169,7 +170,7 @@ def plot_growth(variant, timestamp=None):
     return out.name
 
 
-def climatology_rows(timestamp=None):
+def climatology_rows(run_id):
     """
     Per variant: how far apart the two models' climatologies are, against how
     much the reference model varies on its own.
@@ -178,16 +179,10 @@ def climatology_rows(timestamp=None):
     pointwise trajectories have already separated.
     """
     rows = []
-    seen = set()
-    for path in sorted(RESULTS_DIR.glob("*__*.npz")):
-        variant = path.name.split("__")[0]
-        if timestamp is None:
-            path = latest_matrix_npz(variant)
-        elif f"__{timestamp}.npz" not in path.name:
-            continue
-        if variant in seen or path is None:
-            continue
-        seen.add(variant)
+    # Only this run's files. One glob, no per-variant resolution: every row in
+    # the table is from the same run by construction.
+    for path in sorted(run_dir(RESULTS_DIR, run_id).glob("*.npz")):
+        variant = path.stem
 
         d = np.load(path, allow_pickle=True)
         if f"{GROWTH_FIELD}_mini_frames" not in d.files:
@@ -267,14 +262,17 @@ def parity_table(prefix):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--variant", default="acc_basic", help="variant for the seed/growth figures")
-    parser.add_argument("--timestamp", default=None, help="pin the matrix snapshot instead of using the newest")
+    parser.add_argument("--run-id", required=True,
+                        help="the matrix run to read the long curve and climatology table from. "
+                             "Required and exact -- `--run-id nosuch` lists the ids present.")
     args = parser.parse_args()
 
+    require_run_id(parser, RESULTS_DIR, args.run_id, needs=args.variant)
     FIG_DIR.mkdir(parents=True, exist_ok=True)
 
     seed_fig = plot_seed(args.variant)
-    growth_fig = plot_growth(args.variant, args.timestamp)
-    rows = climatology_rows(args.timestamp)
+    growth_fig = plot_growth(args.variant, args.run_id)
+    rows = climatology_rows(args.run_id)
     clim_fig = plot_climatology(rows)
     init_rows, _ = parity_table("init")
     physics_rows, physics_atol = parity_table("physics")

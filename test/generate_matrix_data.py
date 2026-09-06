@@ -14,19 +14,29 @@ Runs every variant in setups_matrix.py (mini_veros vs veros), recording:
   - a status: "ok", "diverged" (one side blew up mid-run -- the valid prefix
     is kept and compared), or "error" (the variant could not be run at all)
 
-Every variant always leaves an .npz behind, including a failing one. It used
-to leave nothing, and plot_matrix_report.py's "latest" resolution then fell
-back to that variant's newest older file -- a 4-step smoke run, which passed
-the tolerance gate only because 4 steps is not enough time to diverge.
+Every variant always leaves an .npz behind, including a failing one, so that
+a variant which crashed is a visible failed row rather than a gap.
 
-Saves one .npz per variant into $STORE/MiniVeros-Autodiff/results/, named
-"{variant}__{timestamp}.npz" -- every variant run in one invocation shares
-the same timestamp. Re-running (e.g. just `--variant acc_basic`) adds a new
-timestamped file alongside older ones rather than overwriting, so
-plot_matrix_report.py can pick a specific snapshot with --timestamp, or
-the newest one per variant with the default "latest". A separate plotting
-step (plot_matrix_report.py) reads these back in -- kept separate so
-re-plotting doesn't require re-running the (slow) simulations.
+Saves one .npz per variant into $STORE/MiniVeros-Autodiff/results/{run_id}/,
+named "{variant}.npz" -- every variant run in one invocation shares one run
+directory, and re-running under a new id adds a directory alongside rather
+than overwriting.
+
+The run id is the addressing scheme -- and the directory name, so
+`g5k sync model <run_id>` pulls exactly one run off the cluster.
+plot_matrix_report.py renders exactly one id and nothing else. There is deliberately no "newest file wins"
+resolution anywhere, because that is what let a variant missing from the
+current run get backfilled from an older, shorter one -- a 4-step smoke run
+passing the tolerance gate only because 4 steps is not enough time to
+diverge.
+
+Under a wandb sweep the id is the sweep id, so agents on different nodes land
+in one addressable set without coordinating. Outside a sweep, --run-id names
+it (default "local-<UTC timestamp>"). `generated_at` is still recorded inside
+each .npz, but as provenance for the report banner only -- it orders nothing.
+
+A separate plotting step (plot_matrix_report.py) reads these back in -- kept
+separate so re-plotting doesn't require re-running the (slow) simulations.
 
 acc variants run a longer horizon than global ones -- global_4deg is much
 more expensive per step (bigger grid + real climatology forcing).
@@ -38,6 +48,7 @@ Usage:
     python test/generate_matrix_data.py --steps 4 --record-interval 2 --variant acc_basic   # fast smoke test
     python test/generate_matrix_data.py --store-all-fields   # self-contained .npz, ~3.5x the size
     python test/generate_matrix_data.py --solver-atol 1e-8   # the tolerance both codes ship with
+    python test/generate_matrix_data.py --variant global_1deg --run-id be7b0pze  # join an existing set
 """
 
 import argparse
@@ -55,9 +66,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "test"))
 
 import metrics
+from run_ids import result_path, validate_run_id
 from setups_matrix import FAMILIES, VARIANTS, VARIANTS_BY_NAME
 from util import compute_error_evolution, configure_veros_runtime
-from variant_util import TIGHT_SOLVER_ATOL, build_mini_variant, build_real_variant, forced_solver_atol
+from variant_util import DEFAULT_SOLVER_ATOL, build_mini_variant, build_real_variant, forced_solver_atol
 
 DEFAULT_VEROS_PATH = REPO_ROOT / "veros"
 STORE = Path(os.environ.get("STORE", Path.home() / "STORE"))
@@ -73,6 +85,12 @@ RESULTS_DIR = STORE / "MiniVeros-Autodiff" / "results"
 RUN_CONFIG = {
     "acc": dict(n_steps=365*30, record_interval=150),
     "global": dict(n_steps=365*30, record_interval=150),
+    # 1-degree is ~56x global_4deg per step, so the 30-year horizon would be
+    # tens of hours per variant. A short run still answers what the metrics
+    # are sharpest at -- step-0 parity, physics parity, agreement horizon.
+    # The climatology comparison opts itself out below 20 records
+    # (metrics.MIN_CLIMATOLOGY_RECORDS).
+    "global_1deg": dict(n_steps=300, record_interval=25),
 }
 
 # Fields snapshotted at every recorded step for the report's gifs. "temp"
@@ -92,7 +110,11 @@ def _ms(sec_per_step):
     return "n/a" if sec_per_step is None else f"{sec_per_step * 1000:.2f} ms/step"
 
 
-def write_failure_record(variant, run_timestamp, exc, solver_atol=TIGHT_SOLVER_ATOL):
+def _now_stamp():
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def write_failure_record(variant, run_id, exc, solver_atol=DEFAULT_SOLVER_ATOL):
     """
     Write a variant's .npz with status="error" and nothing else.
 
@@ -110,7 +132,8 @@ def write_failure_record(variant, run_timestamp, exc, solver_atol=TIGHT_SOLVER_A
         family=np.asarray(family),
         group=np.asarray(group),
         overrides_json=np.asarray(json.dumps(variant["overrides"])),
-        generated_at=np.asarray(run_timestamp),
+        run_id=np.asarray(run_id),
+        generated_at=np.asarray(_now_stamp()),
         run_config_json=np.asarray(json.dumps(dict(n_steps=cfg["n_steps"], record_interval=cfg["record_interval"]))),
         status=np.asarray("error"),
         error_message=np.asarray(f"{type(exc).__name__}: {exc}"),
@@ -119,20 +142,21 @@ def write_failure_record(variant, run_timestamp, exc, solver_atol=TIGHT_SOLVER_A
         steps_completed=np.asarray(0),
         solver_atol=np.asarray(solver_atol),
     )
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / f"{name}__{run_timestamp}.npz"
+    out_path = result_path(RESULTS_DIR, run_id, name)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(out_path, **out)
     print(f"    recorded failure in {out_path}")
 
 
-def run_variant(variant, veros_path, run_timestamp, store_all_fields=False, solver_atol=TIGHT_SOLVER_ATOL):
+def run_variant(variant, veros_path, run_id, store_all_fields=False, solver_atol=DEFAULT_SOLVER_ATOL,
+                device="cpu", snapshot_surface_only=False):
     name, family, overrides = variant["name"], variant["family"], variant["overrides"]
     group = FAMILIES[family]["group"]
     cfg = variant.get("run_config", RUN_CONFIG[group])
     n_steps, record_interval = cfg["n_steps"], cfg["record_interval"]
 
     print(f"--- {name} ({group}): {n_steps} steps, recording every {record_interval}, "
-          f"solver atol {solver_atol:g} ---")
+          f"solver atol {solver_atol:g}, device {device} ---")
 
     # The patch has to span each build call in full, not just the stepping:
     # veros captures bicgstab in a closure during sim.setup(), and mini_veros
@@ -192,7 +216,8 @@ def run_variant(variant, veros_path, run_timestamp, store_all_fields=False, solv
         family=np.asarray(family),
         group=np.asarray(group),
         overrides_json=np.asarray(json.dumps(overrides)),
-        generated_at=np.asarray(run_timestamp),
+        run_id=np.asarray(run_id),
+        generated_at=np.asarray(_now_stamp()),
         run_config_json=np.asarray(json.dumps(dict(n_steps=n_steps, record_interval=record_interval))),
         status=np.asarray(status),
         error_message=np.asarray(""),
@@ -200,6 +225,7 @@ def run_variant(variant, veros_path, run_timestamp, store_all_fields=False, solv
         mini_nonfinite_at=np.asarray(-1 if mini_nonfinite is None else mini_nonfinite[0]),
         steps_completed=np.asarray(timesteps[-1] if timesteps else 0),
         solver_atol=np.asarray(solver_atol),
+        device=np.asarray(device),
     )
 
     # legacy metrics, kept so older readers of these .npz files keep working
@@ -228,14 +254,27 @@ def run_variant(variant, veros_path, run_timestamp, store_all_fields=False, solv
 
     available = sorted(mini_states[0]) if mini_states else []
     wanted = available if store_all_fields else [f for f in SNAPSHOT_FIELDS if f in available]
+
+    def frames(states, field):
+        stacked = np.stack([s[field] for s in states])
+        # the report's gifs only ever render the uppermost level of a 3D
+        # field, so on a big grid the rest is stored and never looked at:
+        # 360x160x60 float64 is 27.6 MB per record per side, the surface
+        # slice 0.46 MB. Metrics are unaffected -- they are reduced in-process
+        # from the full states before this runs.
+        if snapshot_surface_only and stacked.ndim == 4:
+            return stacked[:, :, :, -1]
+        return stacked
+
     for field in wanted:
-        out[f"{field}_mini_frames"] = np.stack([s[field] for s in mini_states])
-        out[f"{field}_real_frames"] = np.stack([s[field] for s in real_states])
+        out[f"{field}_mini_frames"] = frames(mini_states, field)
+        out[f"{field}_real_frames"] = frames(real_states, field)
     # so a reader can tell whether a metric is recomputable from this file
     out["stored_fields"] = np.asarray(wanted)
+    out["snapshot_surface_only"] = np.asarray(bool(snapshot_surface_only))
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / f"{name}__{run_timestamp}.npz"
+    out_path = result_path(RESULTS_DIR, run_id, name)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(out_path, **out)
     print(f"    saved {out_path}")
 
@@ -249,28 +288,44 @@ def main():
     parser.add_argument("--veros-path", type=Path, default=DEFAULT_VEROS_PATH)
     parser.add_argument("--steps", type=int, default=None, help="override n_steps for every selected variant")
     parser.add_argument("--record-interval", type=int, default=None, help="override record_interval")
+    parser.add_argument("--snapshot-surface-only", action="store_true",
+                        help="store only the uppermost level of 3D snapshot fields. The report's gifs "
+                             "render nothing else, and metrics are reduced from the full states before "
+                             "storage, so this costs nothing but shrinks the frames by nz -- 27.6 MB to "
+                             "0.46 MB per record per side at 360x160x60.")
     parser.add_argument("--store-all-fields", action="store_true",
                         help="store every prognostic field's frames, not just temp/psi. Metrics are "
                              "reduced in-process, so by default a new or corrected metric can only be "
                              "recomputed offline for temp/psi and needs a full rerun for the rest; this "
                              "makes the .npz self-contained, at roughly 3.5x the size.")
-    parser.add_argument("--solver-atol", type=float, default=TIGHT_SOLVER_ATOL,
+    parser.add_argument("--device", choices=("cpu", "gpu"), default="cpu",
+                        help="jax platform for BOTH codes (default cpu). float64 is required by the "
+                             "comparison and is throttled 1:32-1:64 on grenoble's workstation-class "
+                             "GPUs, but at these grid sizes both codes look dispatch-bound rather "
+                             "than FLOP-bound -- measure, do not assume.")
+    parser.add_argument("--solver-atol", type=float, default=DEFAULT_SOLVER_ATOL,
                         help="absolute residual bound forced on BOTH codes' bicgstab for the external "
-                             f"mode (default {TIGHT_SOLVER_ATOL:g}). Both ship with 1e-8, which is loose "
-                             "enough that the two solvers stop ~1e-9 apart in relative psi -- seven "
-                             "orders above float64 roundoff, and the largest avoidable seed of their "
-                             "divergence. Costs 1-3%% in wall time. Pass 1e-8 to reproduce the shipped "
-                             "configuration.")
-    parser.add_argument("--run-timestamp", default=None,
-                        help="stamp results with this instead of the current time. Pass the same value to "
-                             "every job of a split sweep so the whole matrix lands on one snapshot -- "
-                             "plot_matrix_report.py --strict then has a single timestamp to render.")
+                             f"mode (default {DEFAULT_SOLVER_ATOL:g}, what both codes ship with). "
+                             "Tightening it shrinks the largest avoidable seed of their divergence and "
+                             "costs only 1-3%% in wall time, but do NOT go below ~1e-12: the achievable "
+                             "residual floor for this preconditioned system is around 1e-12, and asking "
+                             "for less makes the stopping rule unsatisfiable. jax's bicgstab then "
+                             "iterates past a stagnated residual into breakdown, where rho or omega "
+                             "underflow to zero and the divisions in _bicgstab_solve poison x with NaN "
+                             "*before* its k=-10/-11 sentinel stops the loop -- and both codes discard "
+                             "the returned info. That is what killed acc_biharmonic_mixing on GPU at "
+                             "1e-14 while CPU survived.")
+    parser.add_argument("--run-id", default=None,
+                        help="identifier for this run, used as the results filename segment and as the "
+                             "id plot_matrix_report.py renders. Under a wandb sweep this is the sweep id, "
+                             "so every agent lands on one set without coordinating. Defaults to "
+                             "'local-<UTC timestamp>'.")
     args = parser.parse_args()
 
     if not (args.veros_path / "veros" / "__init__.py").exists():
         parser.error(f"no veros package found at {args.veros_path}")
 
-    configure_veros_runtime(args.veros_path)
+    configure_veros_runtime(args.veros_path, device=args.device)
 
     if args.variant:
         selected = [VARIANTS_BY_NAME[args.variant]]
@@ -281,10 +336,14 @@ def main():
     else:
         selected = VARIANTS
 
-    # one timestamp for the whole invocation, so a full run's variants share
-    # a snapshot; a partial rerun (--variant/--group) gets its own, newer one
-    # unless --run-timestamp pins it (split sweeps, see the flag's help)
-    run_timestamp = args.run_timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # one id for the whole invocation, so a full run's variants land in one
+    # addressable set; a partial rerun (--variant/--group) gets its own unless
+    # --run-id pins it to an existing set
+    run_id = args.run_id or f"local-{_now_stamp()}"
+    try:
+        validate_run_id(run_id)
+    except ValueError as e:
+        parser.error(str(e))
 
     for variant in selected:
         if args.steps or args.record_interval:
@@ -296,7 +355,8 @@ def main():
                 base["record_interval"] = args.record_interval
             variant = dict(variant, run_config=base)
         try:
-            run_variant(variant, args.veros_path, run_timestamp, args.store_all_fields, args.solver_atol)
+            run_variant(variant, args.veros_path, run_id, args.store_all_fields, args.solver_atol,
+                        args.device, args.snapshot_surface_only)
         except Exception as e:
             # Don't let one variant's failure abort the rest of the matrix --
             # but do leave a file behind saying so. Printing only (the old
@@ -306,7 +366,7 @@ def main():
             # gate purely because 4 steps is not enough time to diverge.
             print(f"    FAILED: {variant['name']}: {type(e).__name__}: {e}")
             traceback.print_exc()
-            write_failure_record(variant, run_timestamp, e, args.solver_atol)
+            write_failure_record(variant, run_id, e, args.solver_atol)
 
 
 if __name__ == "__main__":

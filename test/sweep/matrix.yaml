@@ -5,14 +5,35 @@
 #
 # `values` must stay in sync with setups_matrix.VARIANTS_BY_NAME's names --
 # no code path derives this file, so add/rename a variant there and mirror
-# it here.
+# it here. test_sweep_config.py asserts the two agree, because a variant
+# missing here is skipped silently: the sweep simply never queues it, and
+# the rendered report shows a stale row for it instead of a gap.
 #
-# Launch (from repo root):
+# `global_1deg` is deliberately NOT in this list. It is ~56x global_4deg per
+# step and carries its own horizon (setups_matrix's run_config), so it does
+# not belong in a uniform grid sweep -- an agent that pulled it would either
+# block a node or, if MATRIX_STEPS is set for the sweep, run it at the wrong
+# horizon. Launch it on its own instead:
+#   python test/generate_matrix_data.py --variant global_1deg --device gpu \
+#       --run-id SWEEP_ID
+#
+# Launch (from repo root, locally -- `wandb sweep` only talks to the wandb
+# server, the cluster plays no part in creating a sweep):
 #   wandb sweep test/sweep/matrix.yaml   # prints SWEEP_ID
-#   wandb agent SWEEP_ID                 # one per node, e.g. via g5k_launch_sweep.sh
+#   g5k agent SWEEP_ID --site grenoble --n-agents 8 \
+#       --walltime 3:00:00 --no-besteffort
+#   python test/plot_matrix_report.py --run-id SWEEP_ID
+#
+# The sweep id is also the run id every agent writes its results under, so
+# there is nothing to pass around and nothing to keep in sync.
 program: test/sweep_matrix_data.py
 method: grid
 parameters:
+  # Single-valued, so grid still enumerates only `variant` -- this rides along
+  # as a constant every agent reads from the sweep config, which puts the device
+  # the matrix ran on in the sweep record instead of in a node's environment.
+  device:
+    value: cpu
   variant:
     values:
       - acc_basic
