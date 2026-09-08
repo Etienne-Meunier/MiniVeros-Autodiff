@@ -30,34 +30,34 @@ Variants that blew up mid-run are left out: their second half is the explosion, 
 
 | variant | records | rms mean diff (K) | max mean diff (K) | veros self, max (K) | ratio |
 |---|---|---|---|---|---|
-| acc_no_hor_friction | 74 | 2.60e-01 | 3.57e+00 | 2.78e+00 | 1.29 |
-| acc_biharmonic_friction | 74 | 5.76e-02 | 7.72e-01 | 2.28e+00 | 0.34 |
-| acc_basic | 74 | 1.27e-03 | 8.82e-02 | 6.84e-01 | 0.13 |
-| acc_hor_diffusion | 74 | 6.67e-04 | 1.95e-02 | 5.60e-01 | 0.03 |
-| acc_quadratic_bottom_friction | 74 | 3.40e-04 | 1.75e-02 | 5.48e-01 | 0.03 |
-| acc_noslip_lateral | 74 | 1.49e-04 | 9.90e-03 | 6.24e-01 | 0.02 |
-| global_no_neutral_diffusion | 74 | 3.14e-04 | 3.58e-02 | 4.25e+00 | 0.01 |
-| acc_no_skew_diffusion | 74 | 3.44e-04 | 1.56e-02 | 2.42e+00 | 0.01 |
-| global_maximal | 74 | 5.82e-05 | 4.14e-03 | 8.73e-01 | 0.00 |
-| acc_ray_friction | 74 | 1.31e-05 | 1.50e-03 | 7.24e-01 | 0.00 |
-| acc_surface_pressure | 74 | 1.01e-05 | 1.24e-03 | 6.86e-01 | 0.00 |
-| global_default | 74 | 5.60e-06 | 9.85e-04 | 9.03e-01 | 0.00 |
-| acc_explicit_vert_friction | 74 | 9.85e-06 | 8.28e-04 | 8.08e-01 | 0.00 |
-| acc_no_tke | 74 | 9.85e-06 | 8.28e-04 | 8.08e-01 | 0.00 |
-| global_no_skew_diffusion | 74 | 6.10e-06 | 8.24e-04 | 8.51e-01 | 0.00 |
-| global_no_eke | 74 | 9.50e-06 | 7.03e-04 | 9.95e-01 | 0.00 |
-| acc_no_neutral_diffusion | 74 | 1.26e-04 | 1.68e-03 | 2.45e+00 | 0.00 |
-| global_hor_diffusion | 74 | 2.49e-06 | 4.11e-04 | 9.04e-01 | 0.00 |
-| acc_tke_superbee_advection | 74 | 4.17e-06 | 2.83e-04 | 6.84e-01 | 0.00 |
-| global_biharmonic_mixing | 74 | 2.08e-06 | 3.30e-04 | 9.03e-01 | 0.00 |
-| acc_kappaH_profile_off | 74 | 3.09e-06 | 2.10e-04 | 6.86e-01 | 0.00 |
-| global_surface_pressure | 74 | 1.52e-06 | 2.68e-04 | 8.91e-01 | 0.00 |
-| acc_biharmonic_mixing | 74 | 4.82e-06 | 1.36e-04 | 6.84e-01 | 0.00 |
-| acc_bottom_friction_var | 74 | 7.47e-07 | 2.84e-05 | 4.79e-01 | 0.00 |
-| acc_maximal | 74 | 2.52e-06 | 3.31e-05 | 5.62e-01 | 0.00 |
-| acc_full | 74 | 6.24e-06 | 5.19e-05 | 1.05e+00 | 0.00 |
-| acc_eke_isopycnal_diffusion_off | 74 | 6.32e-07 | 2.71e-05 | 8.97e-01 | 0.00 |
-| acc_eke_superbee_off | 74 | 2.65e-06 | 2.75e-05 | 1.05e+00 | 0.00 |
+| acc_biharmonic_friction | 74 | 5.12e-02 | 5.74e-01 | 2.55e+00 | 0.22 |
+| acc_no_hor_friction | 74 | 5.37e-02 | 6.38e-01 | 3.31e+00 | 0.19 |
+| acc_hor_diffusion | 74 | 6.69e-04 | 1.97e-02 | 5.60e-01 | 0.04 |
+| acc_eke_isopycnal_diffusion_off | 74 | 2.45e-04 | 2.83e-02 | 8.97e-01 | 0.03 |
+| acc_quadratic_bottom_friction | 74 | 3.65e-04 | 1.51e-02 | 5.48e-01 | 0.03 |
+| global_maximal | 74 | 1.64e-04 | 1.53e-02 | 8.73e-01 | 0.02 |
+| acc_biharmonic_mixing | 74 | 1.35e-04 | 1.02e-02 | 6.84e-01 | 0.01 |
+| acc_surface_pressure | 74 | 9.91e-05 | 9.41e-03 | 6.86e-01 | 0.01 |
+| global_no_neutral_diffusion | 74 | 7.45e-04 | 3.87e-02 | 4.14e+00 | 0.01 |
+| acc_no_skew_diffusion | 74 | 3.49e-04 | 1.59e-02 | 2.42e+00 | 0.01 |
+| acc_kappaH_profile_off | 74 | 6.31e-05 | 3.65e-03 | 6.86e-01 | 0.01 |
+| acc_noslip_lateral | 74 | 1.55e-05 | 1.16e-03 | 6.24e-01 | 0.00 |
+| acc_basic | 74 | 1.20e-05 | 1.21e-03 | 6.84e-01 | 0.00 |
+| global_no_eke | 74 | 1.28e-05 | 1.36e-03 | 9.95e-01 | 0.00 |
+| acc_no_neutral_diffusion | 74 | 1.31e-04 | 1.72e-03 | 2.45e+00 | 0.00 |
+| acc_ray_friction | 74 | 4.28e-06 | 3.53e-04 | 7.24e-01 | 0.00 |
+| global_default | 74 | 2.99e-06 | 4.27e-04 | 9.03e-01 | 0.00 |
+| global_no_skew_diffusion | 74 | 4.07e-06 | 3.83e-04 | 8.51e-01 | 0.00 |
+| global_surface_pressure | 74 | 2.09e-06 | 3.78e-04 | 8.91e-01 | 0.00 |
+| acc_explicit_vert_friction | 74 | 6.74e-06 | 3.15e-04 | 8.08e-01 | 0.00 |
+| acc_no_tke | 74 | 6.74e-06 | 3.15e-04 | 8.08e-01 | 0.00 |
+| acc_tke_superbee_advection | 74 | 4.09e-06 | 1.70e-04 | 6.84e-01 | 0.00 |
+| global_hor_diffusion | 74 | 1.47e-06 | 2.14e-04 | 9.04e-01 | 0.00 |
+| global_biharmonic_mixing | 74 | 1.58e-06 | 1.65e-04 | 9.03e-01 | 0.00 |
+| acc_maximal | 74 | 5.11e-06 | 8.61e-05 | 5.62e-01 | 0.00 |
+| acc_full | 74 | 3.17e-06 | 2.62e-05 | 1.05e+00 | 0.00 |
+| acc_bottom_friction_var | 74 | 1.34e-07 | 3.53e-06 | 4.79e-01 | 0.00 |
+| acc_eke_superbee_off | 74 | 2.39e-07 | 1.94e-06 | 1.05e+00 | 0.00 |
 
 ## 4. Step-0 parity
 

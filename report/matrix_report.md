@@ -1,7 +1,9 @@
 # mini_veros vs veros: comparison matrix report
 
 <!-- AUTO:timestamp -->
-timestamp: 20260904T153406Z -> `20260904T153406Z` (2026-09-04 15:34:06 UTC). Elliptic solver forced to atol=1e-08 on both sides -- the tolerance both codes ship with. Run on gpu.
+> **Warning: 1 variant(s) have no result in this run:** `global_1deg`. Their rows are empty rather than filled from an earlier run. Rerun them with `--run-id f6zntbky --variant <name>` to complete the set.
+
+run: `f6zntbky`, generated `20260907T231242Z`..`20260907T235637Z` (2026-09-07 23:12:42 UTC to 2026-09-07 23:56:37 UTC). Elliptic solver forced to atol=1e-08 on both sides -- the tolerance both codes ship with. Run on cpu.
 <!-- /AUTO:timestamp -->
 
 31 variants.
@@ -61,38 +63,38 @@ A ratio below 1 means the two models agree with each other better than veros agr
 <!-- AUTO:table -->
 | variant | group | horizon | rel L2 | corr | clim ratio | mini ms/step | veros ms/step | speedup |
 |---|---|---|---|---|---|---|---|---|
-| acc_basic | acc | 900 | 2.73e-03 | 1.0000 | 0.01 | 5.63 | 47.76 | 8.5x |
-| acc_biharmonic_friction | acc | 450 | 2.43e-01 | 0.9709 | 0.20 | 6.95 | 50.67 | 7.3x |
-| acc_biharmonic_mixing | acc | 900 | 3.82e-03 | 1.0000 | 0.01 | 5.95 | 48.49 | 8.2x |
-| acc_bottom_friction_var | acc | 600 | 1.34e-05 | 1.0000 | 0.00 | 5.67 | 50.21 | 8.8x |
-| acc_eke_isopycnal_diffusion_off | acc | 1200 | 2.84e-05 | 1.0000 | 0.00 | 5.85 | 50.72 | 8.7x |
-| acc_eke_superbee_off | acc | 900 | 6.88e-07 | 1.0000 | 0.00 | 5.80 | 50.62 | 8.7x |
-| acc_explicit_vert_friction | acc | 1650 | 6.35e-06 | 1.0000 | 0.00 | 4.20 | 50.13 | 11.9x |
-| acc_full | acc | 900 | 9.25e-07 | 1.0000 | 0.00 | 5.51 | 51.25 | 9.3x |
-| acc_hor_diffusion | acc | 1350 | 1.06e-05 | 1.0000 | 0.00 | 5.64 | 48.27 | 8.6x |
-| acc_kappaH_profile_off | acc | 750 | 1.89e-03 | 1.0000 | 0.00 | 5.73 | 47.62 | 8.3x |
-| acc_maximal | acc | 150 | 8.65e-05 | 1.0000 | 0.00 | 6.73 | 53.95 | 8.0x |
-| acc_minimal | acc | 1500 | - | - | - | 4.92 | 38.89 | 7.9x |
-| acc_no_hor_friction | acc | 300 | 3.05e-01 | 0.9514 | 0.16 | 6.77 | 51.26 | 7.6x |
-| acc_no_neutral_diffusion | acc | 900 | 6.69e-03 | 1.0000 | 0.00 | 5.78 | 38.65 | 6.7x |
-| acc_no_skew_diffusion | acc | 1050 | 5.68e-03 | 1.0000 | 0.01 | 6.59 | 46.95 | 7.1x |
-| acc_no_tke | acc | 1650 | 6.35e-06 | 1.0000 | 0.00 | 4.97 | 50.84 | 10.2x |
-| acc_noslip_lateral | acc | 750 | 7.71e-02 | 0.9971 | 0.09 | 5.51 | 50.36 | 9.1x |
-| acc_quadratic_bottom_friction | acc | 600 | 1.82e-02 | 0.9998 | 0.11 | 5.57 | 49.46 | 8.9x |
-| acc_ray_friction | acc | 600 | 3.20e-06 | 1.0000 | 0.00 | 5.10 | 50.56 | 9.9x |
-| acc_surface_pressure | acc | 150 | 4.64e-02 | 0.9989 | 0.11 | 4.18 | 48.94 | 11.7x |
-| acc_tke_superbee_advection | acc | 150 | 2.71e-03 | 1.0000 | 0.01 | 5.97 | 49.97 | 8.4x |
-| global_biharmonic_friction | global | 600 | - | - | - | 10.12 | 52.54 | 5.2x |
-| global_biharmonic_mixing | global | 150 | 1.57e-05 | 1.0000 | 0.00 | 11.56 | 50.79 | 4.4x |
-| global_default | global | 150 | 6.87e-06 | 1.0000 | 0.00 | 11.60 | 51.40 | 4.4x |
-| global_hor_diffusion | global | 150 | 2.31e-05 | 1.0000 | 0.00 | 11.71 | 52.65 | 4.5x |
-| global_maximal | global | 150 | 6.66e-04 | 1.0000 | 0.00 | 12.14 | 54.21 | 4.5x |
-| global_minimal | global | 150 | - | - | - | 7.34 | 37.35 | 5.1x |
-| global_no_eke | global | 150 | 4.69e-04 | 1.0000 | 0.00 | 10.99 | 47.87 | 4.4x |
-| global_no_neutral_diffusion | global | 150 | 1.35e-03 | 1.0000 | 0.01 | 9.89 | 39.05 | 3.9x |
-| global_no_skew_diffusion | global | 150 | 1.69e-04 | 1.0000 | 0.00 | 11.20 | 46.67 | 4.2x |
-| global_surface_pressure | global | 150 | 9.06e-05 | 1.0000 | 0.00 | 10.14 | 52.28 | 5.2x |
-| global_1deg | global_1deg | 0 | 1.29e-02 | 0.9999 | - | 223.72 | 397.47 | 1.8x |
+| acc_basic | acc | 900 | 1.80e-03 | 1.0000 | 0.01 | 5.76 | 29.81 | 5.2x |
+| acc_biharmonic_friction | acc | 450 | 1.93e-01 | 0.9809 | 0.18 | 6.37 | 30.64 | 4.8x |
+| acc_biharmonic_mixing | acc | 900 | 3.69e-02 | 0.9993 | 0.04 | 5.60 | 30.88 | 5.5x |
+| acc_bottom_friction_var | acc | 600 | 4.34e-06 | 1.0000 | 0.00 | 5.27 | 29.82 | 5.7x |
+| acc_eke_isopycnal_diffusion_off | acc | 1200 | 2.89e-05 | 1.0000 | 0.01 | 6.20 | 33.85 | 5.5x |
+| acc_eke_superbee_off | acc | 900 | 1.37e-07 | 1.0000 | 0.00 | 6.52 | 33.25 | 5.1x |
+| acc_explicit_vert_friction | acc | 1650 | 5.82e-06 | 1.0000 | 0.00 | 4.18 | 26.32 | 6.3x |
+| acc_full | acc | 900 | 2.66e-06 | 1.0000 | 0.00 | 6.63 | 32.88 | 5.0x |
+| acc_hor_diffusion | acc | 1350 | 4.92e-05 | 1.0000 | 0.17 | 5.48 | 30.88 | 5.6x |
+| acc_kappaH_profile_off | acc | 600 | 1.92e-03 | 1.0000 | 0.01 | 5.73 | 30.48 | 5.3x |
+| acc_maximal | acc | 150 | 8.95e-05 | 1.0000 | 0.00 | 7.28 | 38.35 | 5.3x |
+| acc_minimal | acc | 1950 | - | - | - | 3.02 | 16.38 | 5.4x |
+| acc_no_hor_friction | acc | 300 | 2.36e-01 | 0.9711 | 0.17 | 5.96 | 30.03 | 5.0x |
+| acc_no_neutral_diffusion | acc | 900 | 4.81e-03 | 1.0000 | 0.00 | 4.49 | 20.19 | 4.5x |
+| acc_no_skew_diffusion | acc | 1050 | 2.40e-03 | 1.0000 | 0.00 | 5.50 | 25.36 | 4.6x |
+| acc_no_tke | acc | 1650 | 5.82e-06 | 1.0000 | 0.00 | 4.27 | 27.77 | 6.5x |
+| acc_noslip_lateral | acc | 750 | 2.71e-02 | 0.9996 | 0.01 | 5.92 | 30.17 | 5.1x |
+| acc_quadratic_bottom_friction | acc | 600 | 1.83e-02 | 0.9998 | 0.12 | 5.57 | 30.15 | 5.4x |
+| acc_ray_friction | acc | 600 | 3.68e-06 | 1.0000 | 0.00 | 5.72 | 30.08 | 5.3x |
+| acc_surface_pressure | acc | 150 | 1.23e-02 | 0.9999 | 0.03 | 4.98 | 30.26 | 6.1x |
+| acc_tke_superbee_advection | acc | 150 | 1.60e-03 | 1.0000 | 0.01 | 5.59 | 31.09 | 5.6x |
+| global_biharmonic_friction | global | 600 | - | - | - | 22.62 | 65.69 | 2.9x |
+| global_biharmonic_mixing | global | 150 | 3.51e-05 | 1.0000 | 0.00 | 22.61 | 66.84 | 3.0x |
+| global_default | global | 150 | 2.17e-05 | 1.0000 | 0.00 | 21.21 | 64.97 | 3.1x |
+| global_hor_diffusion | global | 150 | 1.24e-04 | 1.0000 | 0.00 | 23.30 | 65.87 | 2.8x |
+| global_maximal | global | 150 | 5.79e-04 | 1.0000 | 0.00 | 22.66 | 62.10 | 2.7x |
+| global_minimal | global | 300 | - | - | - | 16.17 | 39.08 | 2.4x |
+| global_no_eke | global | 150 | 2.39e-04 | 1.0000 | 0.00 | 19.86 | 61.30 | 3.1x |
+| global_no_neutral_diffusion | global | 150 | 1.59e-03 | 1.0000 | 0.00 | 19.48 | 47.03 | 2.4x |
+| global_no_skew_diffusion | global | 150 | 1.73e-04 | 1.0000 | 0.00 | 22.35 | 52.90 | 2.4x |
+| global_surface_pressure | global | 150 | 2.94e-05 | 1.0000 | 0.00 | 21.65 | 65.24 | 3.0x |
+| global_1deg | global_1deg | - | - | - | - | - | - | - |
 <!-- /AUTO:table -->
 
 
@@ -100,7 +102,7 @@ A ratio below 1 means the two models agree with each other better than veros agr
 
 <!-- AUTO:detail -->
 ### acc_basic
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231338Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_basic_error_evolution.png)
 ![acc_basic_temp_evolution](matrix_figures/acc_basic_temp_evolution.gif)
@@ -110,7 +112,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_biharmonic_friction
 overrides: `{'enable_hor_friction': False, 'enable_biharmonic_friction': True, 'A_hbi': 100000000000.0}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231353Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_biharmonic_friction_error_evolution.png)
 ![acc_biharmonic_friction_temp_evolution](matrix_figures/acc_biharmonic_friction_temp_evolution.gif)
@@ -120,7 +122,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_biharmonic_mixing
 overrides: `{'enable_biharmonic_mixing': True, 'K_hbi': 100000000000.0}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232109Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_biharmonic_mixing_error_evolution.png)
 ![acc_biharmonic_mixing_temp_evolution](matrix_figures/acc_biharmonic_mixing_temp_evolution.gif)
@@ -130,7 +132,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_bottom_friction_var
 overrides: `{'enable_bottom_friction_var': True}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231932Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_bottom_friction_var_error_evolution.png)
 ![acc_bottom_friction_var_temp_evolution](matrix_figures/acc_bottom_friction_var_temp_evolution.gif)
@@ -140,7 +142,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_eke_isopycnal_diffusion_off
 overrides: `{'enable_eke_isopycnal_diffusion': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232806Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_eke_isopycnal_diffusion_off_error_evolution.png)
 ![acc_eke_isopycnal_diffusion_off_temp_evolution](matrix_figures/acc_eke_isopycnal_diffusion_off_temp_evolution.gif)
@@ -150,7 +152,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_eke_superbee_off
 overrides: `{'enable_eke_superbee_advection': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232808Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_eke_superbee_off_error_evolution.png)
 ![acc_eke_superbee_off_temp_evolution](matrix_figures/acc_eke_superbee_off_temp_evolution.gif)
@@ -160,7 +162,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_explicit_vert_friction
 overrides: `{'enable_implicit_vert_friction': False, 'enable_explicit_vert_friction': True, 'enable_tke': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231242Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_explicit_vert_friction_error_evolution.png)
 ![acc_explicit_vert_friction_temp_evolution](matrix_figures/acc_explicit_vert_friction_temp_evolution.gif)
@@ -169,7 +171,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 ![acc_explicit_vert_friction_psi_diff](matrix_figures/acc_explicit_vert_friction_psi_diff.gif)
 
 ### acc_full
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231420Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_full_error_evolution.png)
 ![acc_full_temp_evolution](matrix_figures/acc_full_temp_evolution.gif)
@@ -179,7 +181,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_hor_diffusion
 overrides: `{'enable_hor_diffusion': True, 'K_h': 1000.0}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232058Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_hor_diffusion_error_evolution.png)
 ![acc_hor_diffusion_temp_evolution](matrix_figures/acc_hor_diffusion_temp_evolution.gif)
@@ -189,7 +191,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_kappaH_profile_off
 overrides: `{'enable_kappaH_profile': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232738Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_kappaH_profile_off_error_evolution.png)
 ![acc_kappaH_profile_off_temp_evolution](matrix_figures/acc_kappaH_profile_off_temp_evolution.gif)
@@ -199,7 +201,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_maximal
 overrides: `{'enable_biharmonic_friction': True, 'A_hbi': 100000000000.0, 'enable_noslip_lateral': True, 'enable_quadratic_bottom_friction': True, 'r_quad_bot': 0.001, 'enable_hor_diffusion': True, 'K_h': 1000.0, 'enable_biharmonic_mixing': True, 'K_hbi': 100000000000.0, 'enable_tke_superbee_advection': True}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232953Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_maximal_error_evolution.png)
 ![acc_maximal_temp_evolution](matrix_figures/acc_maximal_temp_evolution.gif)
@@ -209,7 +211,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_minimal
 overrides: `{'enable_hor_friction': False, 'enable_bottom_friction': False, 'enable_neutral_diffusion': False, 'enable_skew_diffusion': False, 'enable_tke': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232413Z`, 10950 steps @ interval 150
 
 note: diverged mid-run; rel L2/corr/clim ratio omitted (they'd measure the explosion, not the port)
 ![errors](matrix_figures/acc_minimal_error_evolution.png)
@@ -220,7 +222,7 @@ note: diverged mid-run; rel L2/corr/clim ratio omitted (they'd measure the explo
 
 ### acc_no_hor_friction
 overrides: `{'enable_hor_friction': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231342Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_no_hor_friction_error_evolution.png)
 ![acc_no_hor_friction_temp_evolution](matrix_figures/acc_no_hor_friction_temp_evolution.gif)
@@ -230,7 +232,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_no_neutral_diffusion
 overrides: `{'enable_neutral_diffusion': False, 'enable_skew_diffusion': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231905Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_no_neutral_diffusion_error_evolution.png)
 ![acc_no_neutral_diffusion_temp_evolution](matrix_figures/acc_no_neutral_diffusion_temp_evolution.gif)
@@ -240,7 +242,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_no_skew_diffusion
 overrides: `{'enable_skew_diffusion': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232023Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_no_skew_diffusion_error_evolution.png)
 ![acc_no_skew_diffusion_temp_evolution](matrix_figures/acc_no_skew_diffusion_temp_evolution.gif)
@@ -250,7 +252,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_no_tke
 overrides: `{'enable_tke': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232522Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_no_tke_error_evolution.png)
 ![acc_no_tke_temp_evolution](matrix_figures/acc_no_tke_temp_evolution.gif)
@@ -260,7 +262,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_noslip_lateral
 overrides: `{'enable_noslip_lateral': True}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231406Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_noslip_lateral_error_evolution.png)
 ![acc_noslip_lateral_temp_evolution](matrix_figures/acc_noslip_lateral_temp_evolution.gif)
@@ -270,7 +272,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_quadratic_bottom_friction
 overrides: `{'enable_bottom_friction': False, 'enable_quadratic_bottom_friction': True, 'r_quad_bot': 0.001}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232035Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_quadratic_bottom_friction_error_evolution.png)
 ![acc_quadratic_bottom_friction_temp_evolution](matrix_figures/acc_quadratic_bottom_friction_temp_evolution.gif)
@@ -280,7 +282,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_ray_friction
 overrides: `{'enable_ray_friction': True, 'r_ray': 1e-06}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T231403Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_ray_friction_error_evolution.png)
 ![acc_ray_friction_temp_evolution](matrix_figures/acc_ray_friction_temp_evolution.gif)
@@ -290,7 +292,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_surface_pressure
 overrides: `{'enable_streamfunction': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232027Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_surface_pressure_error_evolution.png)
 ![acc_surface_pressure_temp_evolution](matrix_figures/acc_surface_pressure_temp_evolution.gif)
@@ -300,7 +302,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### acc_tke_superbee_advection
 overrides: `{'enable_tke_superbee_advection': True}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T232637Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/acc_tke_superbee_advection_error_evolution.png)
 ![acc_tke_superbee_advection_temp_evolution](matrix_figures/acc_tke_superbee_advection_temp_evolution.gif)
@@ -310,7 +312,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### global_biharmonic_friction
 overrides: `{'enable_hor_friction': False, 'enable_biharmonic_friction': True, 'A_hbi': 1000000000000.0}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T233919Z`, 10950 steps @ interval 150
 
 note: diverged mid-run; rel L2/corr/clim ratio omitted (they'd measure the explosion, not the port)
 ![errors](matrix_figures/global_biharmonic_friction_error_evolution.png)
@@ -321,7 +323,7 @@ note: diverged mid-run; rel L2/corr/clim ratio omitted (they'd measure the explo
 
 ### global_biharmonic_mixing
 overrides: `{'enable_biharmonic_mixing': True, 'K_hbi': 1000000000000.0}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T234455Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_biharmonic_mixing_error_evolution.png)
 ![global_biharmonic_mixing_temp_evolution](matrix_figures/global_biharmonic_mixing_temp_evolution.gif)
@@ -330,7 +332,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 ![global_biharmonic_mixing_psi_diff](matrix_figures/global_biharmonic_mixing_psi_diff.gif)
 
 ### global_default
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T234028Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_default_error_evolution.png)
 ![global_default_temp_evolution](matrix_figures/global_default_temp_evolution.gif)
@@ -340,7 +342,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### global_hor_diffusion
 overrides: `{'enable_hor_diffusion': True, 'K_h': 1000.0}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T234451Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_hor_diffusion_error_evolution.png)
 ![global_hor_diffusion_temp_evolution](matrix_figures/global_hor_diffusion_temp_evolution.gif)
@@ -350,7 +352,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### global_maximal
 overrides: `{'enable_biharmonic_friction': True, 'A_hbi': 1000000000000.0, 'enable_noslip_lateral': True, 'enable_hor_diffusion': True, 'K_h': 1000.0, 'enable_biharmonic_mixing': True, 'K_hbi': 1000000000000.0, 'enable_tke_superbee_advection': True, 'enable_eke_superbee_advection': True}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T235637Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_maximal_error_evolution.png)
 ![global_maximal_temp_evolution](matrix_figures/global_maximal_temp_evolution.gif)
@@ -360,7 +362,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### global_minimal
 overrides: `{'enable_hor_friction': False, 'enable_neutral_diffusion': False, 'enable_skew_diffusion': False, 'enable_eke': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T234835Z`, 10950 steps @ interval 150
 
 note: diverged mid-run; rel L2/corr/clim ratio omitted (they'd measure the explosion, not the port)
 ![errors](matrix_figures/global_minimal_error_evolution.png)
@@ -371,7 +373,7 @@ note: diverged mid-run; rel L2/corr/clim ratio omitted (they'd measure the explo
 
 ### global_no_eke
 overrides: `{'enable_eke': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T234039Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_no_eke_error_evolution.png)
 ![global_no_eke_temp_evolution](matrix_figures/global_no_eke_temp_evolution.gif)
@@ -381,7 +383,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### global_no_neutral_diffusion
 overrides: `{'enable_neutral_diffusion': False, 'enable_skew_diffusion': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T234232Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_no_neutral_diffusion_error_evolution.png)
 ![global_no_neutral_diffusion_temp_evolution](matrix_figures/global_no_neutral_diffusion_temp_evolution.gif)
@@ -391,7 +393,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### global_no_skew_diffusion
 overrides: `{'enable_skew_diffusion': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T235331Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_no_skew_diffusion_error_evolution.png)
 ![global_no_skew_diffusion_temp_evolution](matrix_figures/global_no_skew_diffusion_temp_evolution.gif)
@@ -401,7 +403,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 
 ### global_surface_pressure
 overrides: `{'enable_streamfunction': False}`
-generated: `20260904T153406Z`, 10950 steps @ interval 150
+generated: `20260907T234357Z`, 10950 steps @ interval 150
 
 ![errors](matrix_figures/global_surface_pressure_error_evolution.png)
 ![global_surface_pressure_temp_evolution](matrix_figures/global_surface_pressure_temp_evolution.gif)
@@ -410,12 +412,7 @@ generated: `20260904T153406Z`, 10950 steps @ interval 150
 ![global_surface_pressure_psi_diff](matrix_figures/global_surface_pressure_psi_diff.gif)
 
 ### global_1deg
-generated: `20260904T153406Z`, 300 steps @ interval 25
 
-![errors](matrix_figures/global_1deg_error_evolution.png)
-![global_1deg_temp_evolution](matrix_figures/global_1deg_temp_evolution.gif)
-![global_1deg_psi_evolution](matrix_figures/global_1deg_psi_evolution.gif)
-![global_1deg_temp_diff](matrix_figures/global_1deg_temp_diff.gif)
-![global_1deg_psi_diff](matrix_figures/global_1deg_psi_diff.gif)
+no data: `no result in this run -- the variant never wrote an .npz`
 
 <!-- /AUTO:detail -->

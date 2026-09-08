@@ -4,11 +4,20 @@
 
 ```
 wandb sweep test/sweep/matrix.yaml       # prints SWEEP_ID
-SWEEP=<the id it printed>
+SWEEP=<the short id it printed>          # e.g. f6zntbky, used as the run id
+SWEEP_PATH=dinofusion/MiniVeros-Autodiff-test/$SWEEP
 
-g5k agent $SWEEP --site grenoble --n-agents 8 \
+g5k agent $SWEEP_PATH --site grenoble --n-agents 8 \
     --walltime 3:00:00 --no-besteffort
 ```
+
+Watch progress with:
+
+```
+g5k sweep inspect $SWEEP_PATH
+g5k check --site grenoble
+```
+
 ## 2. Pull and render
 
 ```
