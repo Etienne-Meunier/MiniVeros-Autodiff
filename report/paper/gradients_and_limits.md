@@ -6,6 +6,12 @@ The goal of this work is to introduce a small code to experiments around gradien
 
 
 
+General rule : for all experiments we need to spin-up the model first (run for a quite long time) otherwise gradients results might be non representative of what happen in practice. 
+
+
+
+
+
 ## General stuff
 
 ### Model description 
@@ -62,7 +68,7 @@ Figure 3 :
 
 Starting from a given configuration (I would say c_k, c_eps) we can launch an integration, get a final state. Then from the surface temperature of this final state we try to retrieve the good parameters. The figure is two fold, first a snapshot of the surface temperature and then the difference between the temperature and the initial state and the one one after optimized state. Then a 2d parameter plot with the loss landscape and the trajectory of optimized parameters. 
 
-Q : I wonder if we can use optimistix to do that instead of designing the optimization by hand
+-> In the figure we can take several initial conditions (like 3) to show if they converge
 ````
 
 
@@ -71,6 +77,9 @@ Q : I wonder if we can use optimistix to do that instead of designing the optimi
 Figure 4 : 
 
 Same concept except that we aim to show the limitation this time. So we try to fit the parameter over a rollout and then increase the rollout for each step we show the error (distance true parameter and fitted one) to show that at one point we can't fit anything
+
+-> In order to have a good idea of the general performance of the calibration we could do the following : calibrate with an initial point at a distance eps to the true param in a circle around it, then we do calibration and we show the average of the distance to the true parameters after calibration then we have a 2d colorplot with rollout in x and distance in y. 
+
 ```
 
 

@@ -1,0 +1,9 @@
+program: test/ck_ceps_100y_sweep/sweep_ck_ceps_100y.py
+method: grid
+parameters:
+  device:
+    value: gpu
+  c_k:
+    values: [0.0125, 0.01984, 0.0315, 0.05, 0.07937, 0.12599, 0.2, 0.31748, 0.50397, 0.8]
+  c_eps:
+    values: [0.0875, 0.1389, 0.22049, 0.35, 0.55559, 0.88194, 1.4, 2.22236, 3.52778, 5.6]

@@ -1,0 +1,20 @@
+program: test/paper_figures/sweep_paper.py
+method: grid
+parameters:
+  device:
+    value: gpu
+  experiment:
+    values:
+      - exp1b_field_jvp_vjp
+      - exp2_sensitivity_map
+      - exp2b_local_perturbation
+      - exp3_calibration
+      - exp3b_calibration_distance
+      - exp4_calibration_limit
+      - exp5_assimilation
+      - exp5b_assimilation_horizon
+      - exp6_gradient_spikes
+      - exp7_checkpoint_cost
+      - exp8_ensemble_gradient
+      - exp9_loss_choice
+      - exp9b_loss_chaos
