@@ -53,7 +53,7 @@ def main():
     fig, axes = style.plt.subplots(1, 3, figsize=(15.5, 6.4), sharey=True)
 
     for n, (c_k, c_eps) in enumerate(common.TOP5):
-        d = np.load(common.DATA_DIR / "full_state" / f"ck{c_k:.4g}_eps{c_eps:.4g}.npz")
+        d = np.load(common.full_state_path(c_k, c_eps))
         temp = d["temp"][-common.KEEP_LAST:, 2:-2, 2:-2, :]
         salt = d["salt"][-common.KEEP_LAST:, 2:-2, 2:-2, :]
         rho = get_potential_rho(eq_of_state_type, salt, temp, 0.0)  # (KEEP_LAST, nx, ny, nz)

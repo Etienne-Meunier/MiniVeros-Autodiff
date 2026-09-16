@@ -19,7 +19,8 @@ simulation.
 | 2 | `exp2_sensitivity_map.py` | `fig2_sensitivity_map.py` | `dT/dp` for four namelist quantities, propagated in forward mode, as snapshots |
 | 2b | `exp2b_local_perturbation.py` | `fig2b_local_perturbation.py` | how a unit perturbation to one grid point of temperature spreads outward, snapshot by snapshot, over a short rollout |
 | 3 | `exp3_calibration.py` | `fig3_calibration.py` | fitting `(c_k, c_eps)` to T,S on the top 3 layers, with the loss landscape and the descent path drawn on it |
-| 3b | `exp3b_calibration_distance.py` | `fig3b_calibration_distance.py` | the same fit swept over both rollout length and how wrong the starting guess is, matrix+colour, with repeats for error bars |
+| 3b | `exp3b_calibration_distance.py` | `fig3b_calibration_distance.py` | the same fit (c_k alone) swept over both rollout length and how wrong the starting guess is, matrix+colour, with repeats for error bars |
+| 3c | `exp3c_calibration_joint.py` | `fig3c_calibration_joint.py` | fitting c_k AND c_eps jointly, starting guess placed on a circle (log-space L2 distance from truth) at 3 evenly-spread angles -- whether the direction of the initial error matters, not just its size |
 | 4 | `exp4_calibration_limit.py` | `fig4_calibration_limit.py` | the same fit over rollouts of growing length, until it stops recovering the truth |
 | 5 | `exp5_assimilation.py` | `fig5_assimilation.py` | recovering the initial temperature field from T,S on the top 3 layers -- once where that's identifiable, once where it isn't |
 | 5b | `exp5b_assimilation_horizon.py` | `fig5b_assimilation_horizon.py` | same recovery question as figure 5, swept over rollout length (10-320 days) and observation metric (SST alone to the whole column): where it actually succeeds vs where it doesn't |
@@ -41,6 +42,7 @@ python test/paper_figures/exp2_sensitivity_map.py    &&  python test/paper_figur
 python test/paper_figures/exp2b_local_perturbation.py    &&  python test/paper_figures/fig2b_local_perturbation.py
 python test/paper_figures/exp3_calibration.py        &&  python test/paper_figures/fig3_calibration.py
 python test/paper_figures/exp3b_calibration_distance.py  &&  python test/paper_figures/fig3b_calibration_distance.py
+python test/paper_figures/exp3c_calibration_joint.py     &&  python test/paper_figures/fig3c_calibration_joint.py
 python test/paper_figures/exp4_calibration_limit.py  &&  python test/paper_figures/fig4_calibration_limit.py
 python test/paper_figures/exp5_assimilation.py       &&  python test/paper_figures/fig5_assimilation.py
 python test/paper_figures/exp5b_assimilation_horizon.py  &&  python test/paper_figures/fig5b_assimilation_horizon.py

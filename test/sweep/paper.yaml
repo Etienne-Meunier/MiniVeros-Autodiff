@@ -10,6 +10,7 @@ parameters:
       - exp2b_local_perturbation
       - exp3_calibration
       - exp3b_calibration_distance
+      - exp3c_calibration_joint
       - exp4_calibration_limit
       - exp5_assimilation
       - exp5b_assimilation_horizon

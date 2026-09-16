@@ -48,7 +48,7 @@ def main():
     years_rms = None
 
     for c_k, c_eps in common.TOP5:
-        path = common.DATA_DIR / "full_state" / f"ck{c_k:.4g}_eps{c_eps:.4g}.npz"
+        path = common.full_state_path(c_k, c_eps)
         d = np.load(path)
         n_logs = d["temp"].shape[0]
         years = (np.arange(n_logs) + 1) * common.LOG_EVERY_DAYS / 365.0

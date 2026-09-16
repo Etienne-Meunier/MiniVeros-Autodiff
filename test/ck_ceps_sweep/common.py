@@ -31,6 +31,19 @@ DATA_DIR = STORE / "MiniVeros-Autodiff" / "results" / "ck_ceps_sweep"
 FIG_DIR = REPO / "report" / "ck_ceps_density_figures"
 SWEEP_NPZ = DATA_DIR / "ck_ceps_density_sweep.npz"
 
+# The 100-model-year, 10x10-grid full-state sweep (wandb run mnk965ig) -- superseded the
+# original 30-year TOP5 full-state runs as the report figures' data source. Same .npz
+# schema as run_top5_full_state.py's output (u,v,temp,salt,psi,tke,eke,zt,n_years,...),
+# just more points and a longer run, stored externally (too big for $STORE/git).
+EXTERNAL_100Y_DIR = Path("/Volumes/LoCe/MiniVeros-Autodiff/results/ck_ceps_100y_sweep/full_state/mnk965ig")
+
+
+def full_state_path(c_k: float, c_eps: float) -> Path:
+    """Path to a (c_k, c_eps) point's full-state .npz in the current data source
+    (EXTERNAL_100Y_DIR). Centralizes the path so switching data source touches one line.
+    """
+    return EXTERNAL_100Y_DIR / f"ck{c_k:.4g}_eps{c_eps:.4g}.npz"
+
 # dt_tracer = 43200s (12h) -> 2 steps/day, 730 steps/model-year.
 STEPS_PER_DAY = int(round(86400.0 / 43200.0))
 STEPS_PER_YEAR = STEPS_PER_DAY * 365
@@ -47,14 +60,20 @@ C_EPS_DEFAULT = 0.70
 C_K_GRID = tuple(C_K_DEFAULT * 2.0**e for e in (-2, -1, 0, 1, 2))
 C_EPS_GRID = tuple(C_EPS_DEFAULT * 2.0**e for e in (-2, -1, 0, 1, 2))
 
-# The 5 (c_k, c_eps) points from the 25-point sweep with the largest RMS deviation of
-# their final density profile from the grid-mean profile (see fig_profiles_all_anomaly.png
-# and run_top5_full_state.py's ranking snippet) -- the ones worth full-state runs.
+# Originally the 5 (c_k, c_eps) points from the 25-point sweep with the largest RMS
+# deviation of their final density profile from the grid-mean profile (see
+# fig_profiles_all_anomaly.png and run_top5_full_state.py's ranking snippet). The report
+# figures now source from EXTERNAL_100Y_DIR's 10x10 grid instead, which doesn't contain
+# these exact values, so each is mapped to its nearest neighbour on that grid (ties
+# broken by always rounding up, per what the values were checked against):
+#   (0.4, 0.175) -> (0.504, 0.2205)   (0.4, 0.35)  -> (0.504, 0.35)
+#   (0.2, 0.175) -> (0.2, 0.2205)     (0.05, 2.8)  -> (0.05, 3.528)
+#   (0.05, 1.4)  -> (0.05, 1.4)       (exact match)
 TOP5 = (
-    (0.4, 0.175),
-    (0.4, 0.35),
-    (0.2, 0.175),
-    (0.05, 2.8),
+    (0.504, 0.2205),
+    (0.504, 0.35),
+    (0.2, 0.2205),
+    (0.05, 3.528),
     (0.05, 1.4),
 )
 

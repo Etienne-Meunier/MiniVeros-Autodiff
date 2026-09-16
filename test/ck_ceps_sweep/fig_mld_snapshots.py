@@ -62,7 +62,7 @@ def main():
 
     mld_maps, titles = [], []
     for c_k, c_eps in common.TOP5:
-        path = common.DATA_DIR / "full_state" / f"ck{c_k:.4g}_eps{c_eps:.4g}.npz"
+        path = common.full_state_path(c_k, c_eps)
         d = np.load(path)
         temp, salt, zt = d["temp"][-common.KEEP_LAST:], d["salt"][-common.KEEP_LAST:], d["zt"]
         rho = get_potential_rho(eq_of_state_type, salt, temp, 0.0)  # (KEEP_LAST, nx+4, ny+4, nz)

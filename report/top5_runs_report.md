@@ -1,20 +1,23 @@
 # The 5 full-state ACC runs: configuration, state, convergence, variability
 
-5 `(c_k, c_eps)` points from `ck_ceps_density_report.md`'s 25-run sweep (largest
-deviation from the sweep's mean density profile), rerun saving the full
-`PrognosticState` (u, v, temp, salt, tke, eke, psi) every 30 days for 30
-model-years, instead of just the reduced density profile the sweep kept.
-Grenoble L4 GPU, OAR job `3100861`. Data:
-`$STORE/MiniVeros-Autodiff/results/ck_ceps_sweep/full_state/ck{c_k}_eps{c_eps}.npz`.
+5 `(c_k, c_eps)` points originally picked from `ck_ceps_density_report.md`'s
+25-run sweep (largest deviation from the sweep's mean density profile),
+saving the full `PrognosticState` (u, v, temp, salt, tke, eke, psi) every 30
+days. Now sourced from a longer, wider 10x10-grid sweep (100 model-years,
+wandb run `mnk965ig`) that doesn't contain those exact values, so each is
+mapped to its nearest neighbour on that grid (see `common.TOP5`'s comment
+for the mapping and tie-breaks). Data:
+`common.EXTERNAL_100Y_DIR/ck{c_k}_eps{c_eps}.npz`
+(`/Volumes/LoCe/MiniVeros-Autodiff/results/ck_ceps_100y_sweep/full_state/mnk965ig/`).
 Code: `test/ck_ceps_sweep/`.
 
-| c_k | c_eps |
-|---|---|
-| 0.4 | 0.175 |
-| 0.4 | 0.35 |
-| 0.2 | 0.175 |
-| 0.05 | 2.8 |
-| 0.05 | 1.4 |
+| c_k | c_eps | (originally) |
+|---|---|---|
+| 0.504 | 0.2205 | 0.4, 0.175 |
+| 0.504 | 0.35 | 0.4, 0.35 |
+| 0.2 | 0.2205 | 0.2, 0.175 |
+| 0.05 | 3.528 | 0.05, 2.8 |
+| 0.05 | 1.4 | 0.05, 1.4 (exact) |
 
 ## 1. Configuration
 
@@ -30,7 +33,7 @@ $$\tau_x(y) = \begin{cases} 0.1\sin\!\left(\dfrac{\pi(y_u-y_{u,\min})}{-20-y_{t,
 $$t^\star(y) = \begin{cases} 15\dfrac{y-y_{t,\min}}{-20-y_{t,\min}} & y<-20 \\ 15 & -20\le y\le 20 \\ 15\left(1-\dfrac{y-20}{y_{t,\max}-20}\right) & y>20 \end{cases} \qquad F_{temp} = \frac{\Delta z_{top}}{30\,\text{days}}\,(t^\star - SST)$$
 
   No salinity forcing (`forc_salt_surface=0`) -- salt evolves from advection/mixing alone (see Section 3). Surface TKE injection: `forc_tke_surface = (|tau|/rho0)^1.5`.
-- Initial condition: `temp0(z) = 15(1 - z/z_{w,0})`, uniform `salt0=35`, zero velocity -- every run starts cold, the 30-year integration *is* the spin-up.
+- Initial condition: `temp0(z) = 15(1 - z/z_{w,0})`, uniform `salt0=35`, zero velocity -- every run starts cold, the 100-year integration *is* the spin-up.
 
 ![setup](ck_ceps_density_figures/fig_setup.png)
 
@@ -96,7 +99,7 @@ $$t^\star(y) = \begin{cases} 15\dfrac{y-y_{t,\min}}{-20-y_{t,\min}} & y<-20 \\ 1
 
 ## 2. Visualizing the state
 
-State evolution, 5 panels side by side, one frame every 150 days (73 frames), 30 years:
+State evolution, 5 panels side by side, one frame every 150 days (244 frames), 100 years:
 
 ![mld evolution](ck_ceps_density_figures/top5_mld_evolution.gif)
 ![temp evolution](ck_ceps_density_figures/top5_temp_evolution.gif)
@@ -118,6 +121,8 @@ Kinetic energy in the periodic part of the channel (`y<-20`, the ACC):
 **Whole state**, same check on every saved field, each normalized by that field's own whole-run RMS (comparable scale across units)
 
 ![state convergence](ck_ceps_density_figures/fig_state_convergence.png)
+
+# 4. Stratification
 
 **Potential density**, final-model-year average: latitude-depth section (zonal mean) per run, and the mean profile alone (whole basin, the ACC channel only, and their difference):
 

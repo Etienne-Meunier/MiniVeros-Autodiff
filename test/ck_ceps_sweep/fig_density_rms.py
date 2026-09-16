@@ -34,7 +34,7 @@ def main():
 
     fig, ax = style.plt.subplots(figsize=(7.5, 3.8))
     for n, (c_k, c_eps) in enumerate(common.TOP5):
-        d = np.load(common.DATA_DIR / "full_state" / f"ck{c_k:.4g}_eps{c_eps:.4g}.npz")
+        d = np.load(common.full_state_path(c_k, c_eps))
         temp, salt = d["temp"][:, 2:-2, 2:-2, :], d["salt"][:, 2:-2, 2:-2, :]
         years = (np.arange(temp.shape[0]) + 1) * common.LOG_EVERY_DAYS / 365.0
 

@@ -42,8 +42,7 @@ def load_frames(field, zt, eq_of_state_type):
     """Per (c_k, c_eps): (n_frames, nx, ny) array for `field` ('temp' surface, or 'mld')."""
     out = []
     for c_k, c_eps in common.TOP5:
-        path = common.DATA_DIR / "full_state" / f"ck{c_k:.4g}_eps{c_eps:.4g}.npz"
-        d = np.load(path)
+        d = np.load(common.full_state_path(c_k, c_eps))
         temp, salt = d["temp"][::FRAME_STRIDE, 2:-2, 2:-2, :], d["salt"][::FRAME_STRIDE, 2:-2, 2:-2, :]
         if field == "temp":
             out.append(temp[..., -1])
@@ -92,7 +91,7 @@ def main():
     y = np.asarray(ref_model.grid.yt[2:-2])
     land = np.asarray(ref_model.boundary_conditions.maskT[2:-2, 2:-2, -1]) == 0
 
-    n_logs = np.load(common.DATA_DIR / "full_state" / f"ck{common.TOP5[0][0]:.4g}_eps{common.TOP5[0][1]:.4g}.npz")["temp"].shape[0]
+    n_logs = np.load(common.full_state_path(*common.TOP5[0]))["temp"].shape[0]
     n_frames = len(range(0, n_logs, FRAME_STRIDE))
     years = (np.arange(0, n_frames * FRAME_STRIDE, FRAME_STRIDE) + 1) * common.LOG_EVERY_DAYS / 365.0
 
