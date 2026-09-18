@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap, TwoSlopeNorm
+from matplotlib.ticker import NullFormatter, ScalarFormatter
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
@@ -106,6 +107,22 @@ def colorbar(fig, mesh, ax, label, **kwargs):
     cb.ax.tick_params(length=2, colors=INK_MUTED, labelcolor=INK_SOFT, labelsize=8)
     cb.set_label(label, color=INK_SOFT, fontsize=8.5)
     return cb
+
+
+def natural_log_ticks(ax, xticks, yticks):
+    """On log-scaled x/y axes, show the given tick values in plain decimal (e.g. "0.10", not
+    "10^-1") -- log positioning is what makes a fixed distance in log-parameter space read as
+    a fixed screen distance, but physicists reading the axis want the parameter's own units."""
+    plain = ScalarFormatter()
+    plain.set_scientific(False)
+    ax.set_xticks(xticks)
+    ax.xaxis.set_major_formatter(plain)
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    plain_y = ScalarFormatter()
+    plain_y.set_scientific(False)
+    ax.set_yticks(yticks)
+    ax.yaxis.set_major_formatter(plain_y)
+    ax.yaxis.set_minor_formatter(NullFormatter())
 
 
 def label_series_ends(ax, x, series, min_gap=0.07):

@@ -71,7 +71,7 @@ def run_one_point(c_k: float, c_eps: float, n_steps: int = N_STEPS, initial_inte
     PrognosticState whose leaves each carry a leading (n_steps // LOG_EVERY,) axis.
     Raises eqx.EquinoxRuntimeError if the run diverges (loop.run freezes the state and
     eqx.error_if raises on return)."""
-    model, state0, forcing_fn = full.build({"c_k": c_k, "c_eps": c_eps})
+    model, state0, forcing_fn = full.build({"tke_closure.c_k": c_k, "tke_closure.c_eps": c_eps})
     if initial_integrator_state is not None:
         state0 = initial_integrator_state
     run_fn = eqx.filter_jit(loop.run)

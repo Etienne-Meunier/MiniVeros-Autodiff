@@ -40,7 +40,7 @@ import numpy as np
 import common
 from exp9_loss_choice import LAST_WINDOW_DAYS, rollout_with_running_mse
 
-PARAM = "c_k"
+PARAM = "tke_closure.c_k"
 LENGTHS = [10, 20, 40, 80, 160, 320]  # days
 LOSS_NAMES = ["final_mse", "avg_mse_full", "avg_mse_last30", "global_mean_sst_sq"]
 REL_STEP = 1e-5
@@ -83,7 +83,7 @@ def make_loss(name, model, forcing_fn, n_steps):
 
 def main(lengths, loss_names, n_members):
     model, state0, forcing_fn = common.spinup()
-    base = getattr(model.parameters, PARAM)
+    base = common.get_param(model, PARAM)
     h = REL_STEP * jnp.abs(base)
     keys = jax.random.split(jax.random.PRNGKey(0), n_members)
 

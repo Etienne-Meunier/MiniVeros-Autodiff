@@ -22,7 +22,7 @@ import common
 
 SPINUP_STEPS = 500
 ROLLOUT_STEPS = 40  # days
-PARAM = "c_k"
+PARAM = "tke_closure.c_k"
 REL_STEP = 1e-5
 
 
@@ -43,7 +43,7 @@ def main():
     print(f"spin-up: {SPINUP_STEPS} steps in {spinup_s:.1f}s ({1000 * spinup_s / SPINUP_STEPS:.1f} ms/step, "
           f"includes one-time compile)")
 
-    base = getattr(model.parameters, PARAM)
+    base = common.get_param(model, PARAM)
 
     @eqx.filter_jit
     def loss(value):

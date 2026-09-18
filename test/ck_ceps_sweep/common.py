@@ -163,7 +163,7 @@ def run_one(c_k: float, c_eps: float, log_select_fn, run_fn, n_steps: int = N_ST
     LOG_EVERY steps; diverged is True if the run hit a non-finite state (loop.run freezes
     the state and eqx.error_if raises on return).
     """
-    model, state0, forcing_fn = full.build({"c_k": c_k, "c_eps": c_eps})
+    model, state0, forcing_fn = full.build({"tke_closure.c_k": c_k, "tke_closure.c_eps": c_eps})
     try:
         _, profiles = run_fn(model, state0, forcing_fn, log_select_fn, n_steps, LOG_EVERY)
         profiles = jnp.asarray(profiles)

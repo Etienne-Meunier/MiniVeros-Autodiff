@@ -1,0 +1,8 @@
+program: test/sweep_matrix_data.py
+method: grid
+parameters:
+  device:
+    value: gpu
+  variant:
+    values:
+      - global_biharmonic_friction

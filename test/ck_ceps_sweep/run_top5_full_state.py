@@ -34,7 +34,7 @@ def main():
 
     t0 = time.time()
     for n, (c_k, c_eps) in enumerate(common.TOP5):
-        model, state0, forcing_fn = full.build({"c_k": c_k, "c_eps": c_eps})
+        model, state0, forcing_fn = full.build({"tke_closure.c_k": c_k, "tke_closure.c_eps": c_eps})
         t1 = time.time()
         try:
             _, states = run_fn(model, state0, forcing_fn, common.full_state_log_select_fn, n_steps, common.LOG_EVERY)

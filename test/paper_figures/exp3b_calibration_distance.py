@@ -40,7 +40,7 @@ import optax
 import common
 
 TRUE_C_K = 0.10
-FIXED = {"c_eps": 0.70}
+FIXED = {"tke_closure.c_eps": 0.70}
 LENGTHS = [10, 20, 40, 80, 120, 160, 240, 320]  # days: H/8 .. 4H, H = common.HORIZON_DAYS = 80
 DISTANCES = [0.15, 0.3, 0.5, 0.7, 1.0]  # |log(start / true)|
 N_REPEATS = 4
@@ -96,12 +96,12 @@ def main(lengths, distances, n_repeats, n_iterations, step_size):
                 model_p = common.with_params(model, {**FIXED, **params})
                 return common.rollout(model_p, member_state0, forcing_fn, n).state
 
-            true_final = final_state({"c_k": jnp.array(TRUE_C_K)})
+            true_final = final_state({"tke_closure.c_k": jnp.array(TRUE_C_K)})
             target_temp, target_salt = common.upper_ts(true_final, N_LAYERS)
             scale = common.upper_ts_scale(model, true_final, N_LAYERS)
 
             def loss(log_c_k, final_state=final_state, target_temp=target_temp, target_salt=target_salt, scale=scale):
-                return common.upper_ts_misfit(model, final_state({"c_k": jnp.exp(log_c_k)}), target_temp, target_salt, scale)
+                return common.upper_ts_misfit(model, final_state({"tke_closure.c_k": jnp.exp(log_c_k)}), target_temp, target_salt, scale)
 
             @eqx.filter_jit
             def update(log_c_k, radius, loss=loss):

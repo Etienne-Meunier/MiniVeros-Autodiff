@@ -31,7 +31,7 @@ import common
 import style
 
 YEAR = 365 * 86400
-SWARM_PARAM = "c_k"
+SWARM_PARAM = "tke_closure.c_k"
 LINTHRESH = 0.1  # panel (b)'s symlog linear region, and the signed-log space smoothing happens in
 
 
@@ -130,8 +130,9 @@ def main():
     ax_b.set_yticks([sign * 10.0**k for sign in (1, -1) for k in (-1, 3, 7, 11)])
     ax_b.set_xlim(n.min() * 0.85, n.max() * 1.2)
     ax_b.set_xlabel("rollout length (days)")
-    ax_b.set_ylabel(rf"$\partial L\,/\,\partial\,${SWARM_PARAM}")
-    ax_b.set_title(f"(b) {SWARM_PARAM}: gradient value and round-off spread")
+    swarm_label = SWARM_PARAM.rsplit(".", 1)[-1]
+    ax_b.set_ylabel(rf"$\partial L\,/\,\partial\,${swarm_label}")
+    ax_b.set_title(f"(b) {swarm_label}: gradient value and round-off spread")
     ax_b.legend(loc="upper left", fontsize=8.5)
 
     for ax in (ax_a, ax_b):

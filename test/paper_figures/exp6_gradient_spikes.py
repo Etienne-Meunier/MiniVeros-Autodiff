@@ -42,7 +42,7 @@ from jax import lax
 import common
 from mini_veros import loop
 
-PARAM = "c_k"
+PARAM = "tke_closure.c_k"
 REL_STEP = 1e-5
 M_MEMBERS = 50
 START_SPACING_DAYS = 7
@@ -72,7 +72,7 @@ def start_dates(model, state0, forcing_fn, n_members, spacing_days):
 
 def ratios(model, forcing_fn, members, n_steps):
     """(r,) autodiff/finite-difference ratio of dL/d(PARAM) for every member, at this length."""
-    base = getattr(model.parameters, PARAM)
+    base = common.get_param(model, PARAM)
 
     @eqx.filter_jit
     def loss(value, member_state0):

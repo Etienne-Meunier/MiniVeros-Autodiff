@@ -53,7 +53,7 @@ ROWS = {
     "wind_stress_scale": dict(kind="forcing", which="wind"),
     "kappaH_min": dict(kind="param", param="kappaH_min"),
     "heat_flux_scale": dict(kind="forcing", which="heat"),
-    "eke_c_k": dict(kind="param", param="eke_c_k"),
+    "eke_c_k": dict(kind="param", param="eke_closure.c_k"),
 }
 
 
@@ -77,7 +77,7 @@ def run_row(model, state0, forcing_fn, row, n_steps, n_snapshots):
     kind = row["kind"]
 
     if kind == "param":
-        base_value = getattr(model.parameters, row["param"])
+        base_value = common.get_param(model, row["param"])
 
         def snapshots(value):
             model_p = common.with_params(model, {row["param"]: value})

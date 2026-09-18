@@ -49,8 +49,8 @@ import optax
 
 import common
 
-TRUE = {"c_k": 0.10, "c_eps": 0.70}
-GUESS = {"c_k": 0.20, "c_eps": 0.45}
+TRUE = {"tke_closure.c_k": 0.10, "tke_closure.c_eps": 0.70}
+GUESS = {"tke_closure.c_k": 0.20, "tke_closure.c_eps": 0.45}
 C_K_RANGE = (0.04, 0.26)
 C_EPS_RANGE = (0.30, 1.10)
 N_LAYERS = 3
@@ -106,7 +106,7 @@ def main(n_steps, n_grid, n_iterations, step_size):
     t0 = time.time()
     for i, a in enumerate(c_k):
         for j, b in enumerate(c_eps):
-            landscape[i, j] = loss({"c_k": jnp.array(a), "c_eps": jnp.array(b)})
+            landscape[i, j] = loss({"tke_closure.c_k": jnp.array(a), "tke_closure.c_eps": jnp.array(b)})
         print(f"  landscape row {i + 1}/{n_grid} ({time.time() - t0:.0f}s)")
 
     x, y, land = common.grid_arrays(model)

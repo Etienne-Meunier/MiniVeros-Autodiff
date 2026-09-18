@@ -34,7 +34,7 @@ import optax
 
 import common
 
-TRUE = {"c_k": 0.10, "c_eps": 0.70}
+TRUE = {"tke_closure.c_k": 0.10, "tke_closure.c_eps": 0.70}
 NAMES = list(TRUE)
 LENGTHS = [10, 20, 40, 80, 120, 160, 240, 320]  # days: H/8 .. 4H, H = common.HORIZON_DAYS = 80
 DISTANCES = [0.15, 0.3, 0.5, 0.7, 1.0]  # L2 radius in log-parameter space
@@ -46,8 +46,8 @@ def start_point(distance, angle_deg):
     """(c_k, c_eps) at `distance` (log-space L2 radius) and `angle_deg` around TRUE."""
     theta = np.deg2rad(angle_deg)
     return {
-        "c_k": TRUE["c_k"] * float(np.exp(distance * np.cos(theta))),
-        "c_eps": TRUE["c_eps"] * float(np.exp(distance * np.sin(theta))),
+        "tke_closure.c_k": TRUE["tke_closure.c_k"] * float(np.exp(distance * np.cos(theta))),
+        "tke_closure.c_eps": TRUE["tke_closure.c_eps"] * float(np.exp(distance * np.sin(theta))),
     }
 
 

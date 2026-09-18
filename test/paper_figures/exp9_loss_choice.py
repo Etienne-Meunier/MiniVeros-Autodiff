@@ -40,7 +40,7 @@ from jax import lax
 import common
 from mini_veros import loop
 
-PARAM = "c_k"
+PARAM = "tke_closure.c_k"
 LENGTHS = [10, 20, 40, 80, 160, 320, 640]  # days
 REL_STEP = 1e-5
 LAST_WINDOW_DAYS = 30
@@ -110,7 +110,7 @@ def loss_fn(name, model, state0, forcing_fn, n_steps, base_target=None):
 
 def main(lengths, loss_names):
     model, state0, forcing_fn = common.spinup()
-    base = getattr(model.parameters, PARAM)
+    base = common.get_param(model, PARAM)
     h = REL_STEP * jnp.abs(base)
 
     grad_ad = np.full((len(lengths), len(loss_names)), np.nan)

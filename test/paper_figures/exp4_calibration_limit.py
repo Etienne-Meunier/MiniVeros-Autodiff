@@ -37,9 +37,9 @@ import optax
 
 import common
 
-TRUE = {"c_k": 0.10, "c_eps": 0.70}
-FIT = ["c_k"]  # the entries of TRUE the optimiser is allowed to move
-STARTS = [{"c_k": 0.20}, {"c_k": 0.06}]
+TRUE = {"tke_closure.c_k": 0.10, "tke_closure.c_eps": 0.70}
+FIT = ["tke_closure.c_k"]  # the entries of TRUE the optimiser is allowed to move
+STARTS = [{"tke_closure.c_k": 0.20}, {"tke_closure.c_k": 0.06}]
 LENGTHS = [10, 20, 40, 80, 160, 320]  # days: H/8 .. 4H, H = common.HORIZON_DAYS = 80
 N_LAYERS = 3
 

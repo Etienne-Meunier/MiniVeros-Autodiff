@@ -39,7 +39,7 @@ import numpy as np
 
 import common
 
-PARAMS = ["c_k", "c_eps", "A_h"]
+PARAMS = ["tke_closure.c_k", "tke_closure.c_eps", "A_h"]
 FIELDS = ["temp", "salt"]
 LENGTHS = [10, 20, 40, 80, 160, 320, 640]  # days
 REL_STEP = 1e-5
@@ -63,7 +63,7 @@ def random_directions(n, param_names, seed):
 
 def main(lengths, checkpoint_every):
     model, state0, forcing_fn = common.spinup()
-    base = {p: getattr(model.parameters, p) for p in PARAMS}
+    base = {p: common.get_param(model, p) for p in PARAMS}
 
     @eqx.filter_jit
     def field_loss(params, n_steps, field_name):

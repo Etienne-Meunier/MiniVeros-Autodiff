@@ -41,12 +41,10 @@ import numpy as np
 
 import common
 
-PARAMS = ["c_k", "c_eps", "A_h"]  # TKE production, TKE dissipation, horizontal viscosity
+PARAMS = ["tke_closure.c_k", "tke_closure.c_eps", "A_h"]  # TKE production, TKE dissipation, horizontal viscosity
 LENGTHS = [10, 20, 30, 40, 60, 80, 120, 160, 240, 320, 480, 640, 960, 1280, 1920, 2560]  # days
 REL_STEP = 1e-5  # h = REL_STEP * p, fixed across the whole ensemble
-N_MEMBERS = 8
-N_MEMBERS_BEYOND = 640  # lengths past this use N_MEMBERS_REDUCED instead, to bound cost
-N_MEMBERS_REDUCED = 4
+N_MEMBERS = 8  # same ensemble size at every length, no reduction for the long rollouts
 ROUNDOFF_STD = 1e-12  # K, roughly float64 round-off on a ~10 K temperature
 HORIZON_TOL = 1e-2  # relative error below which a length counts as "inside the horizon"
 
@@ -61,13 +59,9 @@ def perturbed_state0(state0, model, key):
     return eqx.tree_at(lambda s: s.state, state0, new_state)
 
 
-def n_members_for(n_steps):
-    return N_MEMBERS_REDUCED if n_steps > N_MEMBERS_BEYOND else N_MEMBERS
-
-
 def main(lengths, checkpoint_every):
     model, state0, forcing_fn = common.spinup()
-    base = {p: getattr(model.parameters, p) for p in PARAMS}
+    base = {p: common.get_param(model, p) for p in PARAMS}
     keys = jax.random.split(jax.random.PRNGKey(0), N_MEMBERS)
 
     @eqx.filter_jit
@@ -97,14 +91,11 @@ def main(lengths, checkpoint_every):
     grad_ad_members = np.full((n_lengths, N_MEMBERS, len(PARAMS)), np.nan)
     grad_fd_members = np.full((n_lengths, N_MEMBERS, len(PARAMS)), np.nan)
     grad_jvp_members = np.full((n_lengths, N_MEMBERS, len(PARAMS)), np.nan)
-    n_members_used = np.zeros(n_lengths, dtype=int)
 
     for i, n in enumerate(lengths):
         t0 = time.time()
-        m = n_members_for(n)
-        n_members_used[i] = m
 
-        for mi in range(m):
+        for mi in range(N_MEMBERS):
             member_state0 = state0 if mi == 0 else perturbed_state0(state0, model, keys[mi])
             if mi == 0:
                 losses[i] = loss(base, member_state0, n)
@@ -122,7 +113,7 @@ def main(lengths, checkpoint_every):
         grad_fd[i] = grad_fd_members[i, 0]
         grad_jvp[i] = grad_jvp_members[i, 0]
         rel_err = np.abs(grad_ad[i] - grad_fd[i]) / np.abs(grad_fd[i])
-        print(f"n={n:5d}d  members={m}  L={losses[i]:.6f}  "
+        print(f"n={n:5d}d  members={N_MEMBERS}  L={losses[i]:.6f}  "
               f"dL/dc_k: ad={grad_ad[i, 0]:+.4e} fd={grad_fd[i, 0]:+.4e}  "
               f"rel_err(max over params)={rel_err.max():.2e}  ({time.time() - t0:.0f}s)")
 
@@ -137,7 +128,7 @@ def main(lengths, checkpoint_every):
         lengths=lengths, params=PARAMS, rel_step=REL_STEP, base=[base[p] for p in PARAMS],
         losses=losses, grad_ad=grad_ad, grad_fd=grad_fd, grad_jvp=grad_jvp,
         grad_ad_members=grad_ad_members, grad_fd_members=grad_fd_members, grad_jvp_members=grad_jvp_members,
-        n_members_used=n_members_used,
+        n_members=N_MEMBERS,
         roundoff_std=ROUNDOFF_STD, horizon_days=horizon_days,
         dt_tracer=model.config.dt_tracer, checkpoint_every=checkpoint_every,
     )

@@ -27,6 +27,7 @@ from jax import lax
 jax.config.update("jax_enable_x64", True)
 
 from mini_veros import loop
+from mini_veros.model import apply_overrides
 from mini_veros.setups.global_4deg.default import build
 
 REPO = Path(__file__).resolve().parents[2]
@@ -75,8 +76,34 @@ def spinup(n_steps: int = SPINUP_STEPS, overrides: dict | None = None):
 
 
 def with_params(model, params: dict):
-    """Copy of `model` with the named scalar parameters replaced (e.g. {"c_k": 0.12})."""
-    return dataclasses.replace(model, parameters=dataclasses.replace(model.parameters, **params))
+    """Copy of `model` with the named scalar parameters replaced (e.g. {"tke_closure.c_k": 0.12}). A key may reach
+    one level into a closure submodule (e.g. "tke_closure.c_k") -- apply_overrides itself only matches flat
+    Parameters/StaticConfig field names, so a dotted key is resolved here: the submodule is replaced with
+    dataclasses.replace(submodule, **its own overrides), then apply_overrides handles what's left (flat keys)."""
+    flat, nested = {}, {}
+    for key, value in params.items():
+        if "." in key:
+            head, tail = key.split(".", 1)
+            nested.setdefault(head, {})[tail] = value
+        else:
+            flat[key] = value
+
+    new_parameters = model.parameters
+    for submodule_name, overrides in nested.items():
+        submodule = dataclasses.replace(getattr(new_parameters, submodule_name), **overrides)
+        new_parameters = dataclasses.replace(new_parameters, **{submodule_name: submodule})
+
+    _, new_parameters = apply_overrides(model.config, new_parameters, flat)
+    return dataclasses.replace(model, parameters=new_parameters)
+
+
+def get_param(model, name: str):
+    """model.parameters.<name>, where name may reach one level into a closure submodule
+    (e.g. "tke_closure.c_k"), matching the key format with_params/apply_overrides take."""
+    obj = model.parameters
+    for part in name.split("."):
+        obj = getattr(obj, part)
+    return obj
 
 
 def safe_checkpoint_every(n_steps: int, target: int = 10) -> int:
@@ -171,6 +198,47 @@ def upper_ts_misfit(model, state, target_temp, target_salt, scale):
         return (err2 / s).sum()
 
     return mean_sq_err(temp, target_temp, scale_temp) + mean_sq_err(salt, target_salt, scale_salt)
+
+
+def density_gradient(result, n_layers: int = 3):
+    """Potential density differences from the surface, over the top `n_layers` levels:
+    prho[-n_layers]-prho[-1], ..., prho[-2]-prho[-1] -- interior grid, (nx, ny, n_layers - 1).
+
+    `result` must be the full IntegratorState `rollout()` returns, not its `.state`: prho
+    lives only on `statefuldiag_m1` (DiagnosticState itself is not carried in IntegratorState),
+    one step behind the prognostic fields it is read alongside -- immaterial for a loss read at
+    the final step of a rollout.
+    """
+    prho = interior(result.statefuldiag_m1.prho)[..., -n_layers:]
+    return prho[..., :-1] - prho[..., -1:]
+
+
+def density_gradient_scale(model, result, n_layers: int = 3):
+    """Per-layer ocean variance of `density_gradient(result, n_layers)`, for `density_gradient_misfit`."""
+    ocean = interior(model.boundary_conditions.maskT)[..., -n_layers:-1] != 0
+    field = density_gradient(result, n_layers)
+    n_ocean = jnp.maximum(ocean.sum(axis=(0, 1)), 1)
+    mean = jnp.where(ocean, field, 0.0).sum(axis=(0, 1)) / n_ocean
+    return jnp.where(ocean, (field - mean) ** 2, 0.0).sum(axis=(0, 1)) / n_ocean
+
+
+def density_gradient_misfit(model, result, target, scale, n_layers: int = 3):
+    """Sum over layer of mean_ocean((rho_gradient - target)^2) / scale[layer] -- density
+    analogue of `upper_ts_misfit`. c_k/c_eps set mixing strength, which is felt directly as
+    the density contrast between the surface and the layers below, so this compares that
+    contrast rather than temperature and salinity separately.
+    """
+    ocean = interior(model.boundary_conditions.maskT)[..., -n_layers:-1] != 0
+    n_ocean = jnp.maximum(ocean.sum(axis=(0, 1)), 1)
+    field = density_gradient(result, n_layers)
+    err2 = jnp.where(ocean, (field - target) ** 2, 0.0).sum(axis=(0, 1)) / n_ocean
+    return (err2 / scale).sum()
+
+
+def density_gradient_map(result):
+    """prho[-2]-prho[-1] on the interior grid -- one representative channel of
+    `density_gradient`, for map panels."""
+    return density_gradient(result, n_layers=2)[..., 0]
 
 
 def save(name: str, **arrays):

@@ -2,3 +2,4 @@ mamba_env: veros
 model_store_path: MiniVeros-Autodiff
 project_name: miniverosad
 unison_profile: miniverosad_cp_agrenoble
+train_script: test/paper_figures/run_g5k.py

@@ -40,7 +40,7 @@ def default_lengths():
     return [H // 2, H, H * 2, H * 4]
 
 
-PARAM = "c_k"
+PARAM = "tke_closure.c_k"
 PERTURBATION = 1e-3  # K, small enough that every member is the same climate
 REL_STEP = 1e-4  # finite-difference step, as a fraction of the parameter
 
@@ -48,7 +48,7 @@ REL_STEP = 1e-4  # finite-difference step, as a fraction of the parameter
 def main(lengths, n_members, perturbation):
     model, state0, forcing_fn = common.spinup()
     mask = model.boundary_conditions.maskT
-    base = getattr(model.parameters, PARAM)
+    base = common.get_param(model, PARAM)
 
     def member(key):
         """The settled state, nudged by a small temperature perturbation."""

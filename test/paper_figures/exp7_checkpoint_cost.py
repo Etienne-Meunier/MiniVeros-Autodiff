@@ -73,15 +73,15 @@ def measure(n_steps, checkpoint_every):
         model_p = common.with_params(model, params)
         return common.mean_square_sst(common.rollout(model_p, state0, forcing_fn, n_steps, checkpoint_every).state)
 
-    params = {"c_k": jnp.array(0.1)}
+    params = {"tke_closure.c_k": jnp.array(0.1)}
     t0 = time.time()
     loss, grads = value_and_grad(params)
-    jnp.asarray(grads["c_k"]).block_until_ready()
+    jnp.asarray(grads["tke_closure.c_k"]).block_until_ready()
     compile_and_run = time.time() - t0
 
     t0 = time.time()
     loss, grads = value_and_grad(params)
-    jnp.asarray(grads["c_k"]).block_until_ready()
+    jnp.asarray(grads["tke_closure.c_k"]).block_until_ready()
     run = time.time() - t0
 
     peak_mb = peak_rss_mb()
@@ -89,7 +89,7 @@ def measure(n_steps, checkpoint_every):
         "checkpoint_every": checkpoint_every, "stored_states": n_steps // checkpoint_every,
         "compile_and_run_s": compile_and_run, "run_s": run,
         "peak_mb": peak_mb, "baseline_mb": baseline_mb, "tape_mb": peak_mb - baseline_mb,
-        "grad": float(grads["c_k"]),
+        "grad": float(grads["tke_closure.c_k"]),
     }))
 
 
